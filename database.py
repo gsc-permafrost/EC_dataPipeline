@@ -26,7 +26,6 @@ class database:
     Years: list = field(default_factory=lambda:[datetime.datetime.now().year])
     metadata: dict = field(default_factory=load)
 
-
     def __post_init__(self):
         self.Years = [str(Y) for Y in self.Years]
         self._metadata = os.path.join(self.projectPath,"_metadata.yml")
@@ -98,8 +97,6 @@ class database:
                 else: fill_cols = []
                 append_cols = [c for c in dataIn.columns if c not in fill_cols]
                 fullYear = fullYear.join(dataIn[append_cols])
-
-
             
         for col in fullYear.columns:
             if col in self.metadata['defaultFormat'].keys():
