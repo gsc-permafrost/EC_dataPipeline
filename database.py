@@ -69,17 +69,20 @@ class database:
     
     def readDatabaseFolder(self,dbpth,filter = None):
         files = [f for f in os.listdir(dbpth) if filter is None or f in filter]
-        print(files)
-        df = pd.DataFrame(data = {f:np.fromfile(os.path.join(dbpth,f),dtype=self.metadata[f]['dtype']) if f in self.metadata.keys() 
-                else np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['default']['dtype'])
-                for f in files})
+        data = {f:np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['defaultFormat'][f]['dtype']) if f in self.metadata['defaultFormat'].keys() 
+                else np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['defaultFormat']['data']['dtype'])
+                for f in files}
+        # print(data['POSIX_timestamp'].shape,data['RecordNumber'].shape)
+        df = pd.DataFrame(data = {f:np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['defaultFormat'][f]['dtype']) if f in self.metadata['defaultFormat'].keys() 
+                else np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['defaultFormat']['data']['dtype'])
+                for f in files}
+                )
         if not df.empty:
             df.index=pd.to_datetime(df['POSIX_timestamp'],unit='s')
         return(df)
         
     def writeDatabase(self,dataIn,siteID,stage='raw',mode='fill',freq='30min'):
         for y in dataIn.index.year.unique():
-            print(self.projectPath,str(y),siteID,stage)
             dbpth = os.path.join(self.projectPath,str(y),siteID,stage)
             if not os.path.isdir(dbpth):
                 os.makedirs(dbpth)
@@ -88,11 +91,6 @@ class database:
                 fullYear = pd.DataFrame(index=pd.date_range(str(y),str(y+1),freq=freq,inclusive='right'))
                 fullYear['POSIX_timestamp'] = (fullYear.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
                 fullYear = fullYear.join(dataIn)
-                for col in fullYear.columns:
-                    if col in self.metadata.keys():
-                        fullYear[col].astype(self.metadata[col]['dtype']).values.tofile(os.path.join(dbpth,col))
-                    else:
-                        fullYear[col].astype(self.metadata['default']['dtype']).values.tofile(os.path.join(dbpth,col))
             else:
                 if mode == 'fill':
                     fill_cols = [c for c in dataIn.columns if c in fullYear.columns]
@@ -100,3 +98,11 @@ class database:
                 else: fill_cols = []
                 append_cols = [c for c in dataIn.columns if c not in fill_cols]
                 fullYear = fullYear.join(dataIn[append_cols])
+
+
+            
+        for col in fullYear.columns:
+            if col in self.metadata['defaultFormat'].keys():
+                fullYear[col].astype(self.metadata['defaultFormat'][col]['dtype']).values.tofile(os.path.join(dbpth,col))
+            else:
+                fullYear[col].astype(self.metadata['defaultFormat']['data']['dtype']).values.tofile(os.path.join(dbpth,col))

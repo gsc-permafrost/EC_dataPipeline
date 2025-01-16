@@ -2,22 +2,22 @@ import numpy as np
 import pandas as pd
 import dateutil.parser as dateParse 
 from dataclasses import dataclass,field
+from . import loggerClass
+
 
 @dataclass
-class CSV:
+class CSV(loggerClass.Logger):
     fileType: str = "HoboCSV"
     sourcePath: str = None
-    siteID: str = None
+    verbose: bool = True
     timeZone: str = 'UTC'
-    positionID: str = None
-    positionDescriptor: str = None
     measurementInterval: str = None
     dropNonNumeric: bool = True
     Data: pd.DataFrame = field(default_factory=pd.DataFrame)
     timestamp_cols: str = field(default_factory=lambda:['Date_Time'])
     # Assume year is first in the date, dateparser (should) correct if not the case
     yearfirst: bool = True
-    xyCoords: list = field(default_factory=lambda:[np.nan,np.nan])
+    name_out: dict = field(default_factory=dict)
     # names of header metadata
     header_index: list = field(default_factory=lambda:['unit_in','logger_sn','sensor_sn'])
     # non-data traces
@@ -37,7 +37,7 @@ class CSV:
             self.readHeader()
             self.readData()
         if self.dropNonNumeric:
-            print('Dropping non-numeric data')
+            if self.verbose: print('Dropping non-numeric data')
             self.Data = self.Data._get_numeric_data().copy()
         
     def readHeader(self):
