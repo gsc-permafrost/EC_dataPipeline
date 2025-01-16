@@ -69,6 +69,7 @@ class database:
     
     def readDatabaseFolder(self,dbpth,filter = None):
         files = [f for f in os.listdir(dbpth) if filter is None or f in filter]
+        print(files)
         df = pd.DataFrame(data = {f:np.fromfile(os.path.join(dbpth,f),dtype=self.metadata[f]['dtype']) if f in self.metadata.keys() 
                 else np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['default']['dtype'])
                 for f in files})
@@ -78,6 +79,7 @@ class database:
         
     def writeDatabase(self,dataIn,siteID,stage='raw',mode='fill',freq='30min'):
         for y in dataIn.index.year.unique():
+            print(self.projectPath,str(y),siteID,stage)
             dbpth = os.path.join(self.projectPath,str(y),siteID,stage)
             if not os.path.isdir(dbpth):
                 os.makedirs(dbpth)
@@ -98,4 +100,3 @@ class database:
                 else: fill_cols = []
                 append_cols = [c for c in dataIn.columns if c not in fill_cols]
                 fullYear = fullYear.join(dataIn[append_cols])
-            print(fullYear.head())
