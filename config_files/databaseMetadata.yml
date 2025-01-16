@@ -1,0 +1,5 @@
+default:
+  dtype: float32
+POSIX_timestamp:
+  dtype: float64
+  timezone: UTC
