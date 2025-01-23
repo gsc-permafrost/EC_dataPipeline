@@ -9,28 +9,30 @@ class observation:
     ignore: bool = True
     name_in: str = None
     unit_in: str = None
-    unit_out: str = None
+    # unit_out: str = None
     # safeName: str = None
-    name_out: str = None
+    safe_name: str = None
     dtype: str = None
     variableDescription: str = None
     # positional variables (vertical, horizontal, repetition)
-    V: int = None
-    H: int = None
-    R: int = None
+    # V: int = None
+    # H: int = None
+    # R: int = None
 
     def __post_init__(self):
         if self.name_in is not None:
-            self.name_out = re.sub('[^0-9a-zA-Z]+','_',self.name_in)
+            self.safe_name = re.sub('[^0-9a-zA-Z]+','_',self.name_in)
             # if min([self.V,self.H,self.R])>0:
-            #     self.name_out = '_'.join([str(i) for i in [self.safeName,self.V,self.H,self.R]])
+            #     self.safe_name = '_'.join([str(i) for i in [self.safeName,self.V,self.H,self.R]])
         self.unit_out = self.unit_in
 
 @dataclass
 class genericLoggerFile:
+    # Important attributes to be associated with a generic logger file
+    verbose: bool = True
     siteID: str = 'siteID'
     fileType: str = None
-    loggerName: str = None
+    loggerName: str = 'loggerName'
     subSiteID: str = None
     siteDescription: str = None
     # firstRecord: str = None
@@ -38,21 +40,31 @@ class genericLoggerFile:
     replicateID: int = 1
     frequency: str = '30min'
     timeZone: str = 'UTC'
+    lat: float = 0.0
+    lon: float = 0.0
     Data: pd.DataFrame = field(default_factory=pd.DataFrame)
-    latlon: list = field(default_factory=lambda:[None,None])
     def __post_init__(self):
-        self.Metadata = {}
-        for field_value in type(self).__mro__[-2].__dataclass_fields__.values():
-            if not (field_value.type == type(pd.DataFrame())):
-                self.Metadata[field_value.name] = self.__dict__[field_value.name]            
-            # self.firstRecord = self.Data.index.min().strftime('%Y-%m-%d %H:%M:%S')
-            # self.lastRecord = self.Data.index.max().strftime('%Y-%m-%d %H:%M:%S')
+        # fill subSiteID from logger name if alternate not provided
         if self.subSiteID is None and self.loggerName is not None:
             self.subSiteID = self.loggerName
+        self.Metadata = {}
+        for field_value in type(self).__mro__[-2].__dataclass_fields__.values():
+            # exclude a subset of items from the attributes
+            if not (field_value.type == type(pd.DataFrame()) or field_value.name=='verbose'):
+                self.Metadata[field_value.name] = self.__dict__[field_value.name]     
+
+            # self.firstRecord = self.Data.index.min().strftime('%Y-%m-%d %H:%M:%S')
+            # self.lastRecord = self.Data.index.max().strftime('%Y-%m-%d %H:%M:%S')
         self.Metadata['Variables'] = {}
+        newNames = []
+        if self.verbose: print('Standardizing and documenting traces')
         for col in self.Data.columns:
             obs = observation(name_in=col,dtype=self.Data[col].dtype.str)
-            self.Metadata['Variables'][obs.name_out] = obs.__dict__
+            if obs.safe_name != obs.name_in and self.verbose:
+                print('Re-named: ',obs.name_in,' to: ',obs.safe_name)
+            self.Metadata['Variables'][obs.safe_name] = obs.__dict__
+            newNames.append(obs.safe_name)
+        self.Data.columns = newNames
 
 @dataclass
 class hoboCSV(genericLoggerFile):
@@ -116,7 +128,7 @@ class hoboCSV(genericLoggerFile):
 #     timestamp_cols: str = field(default_factory=lambda:['Date Time'])
 #     # Assume year is first in the date, dateparser (should) correct if not the case
 #     yearfirst: bool = True
-#     name_out: dict = field(default_factory=dict)
+#     safe_name: dict = field(default_factory=dict)
 #     # names of header metadata
 #     header_index: list = field(default_factory=lambda:['name_in','unit_in','logger_sn','sensor_sn','label'])
 #     # non-data traces

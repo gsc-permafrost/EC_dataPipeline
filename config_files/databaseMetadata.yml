@@ -5,4 +5,4 @@ defaultFormat:
   POSIX_timestamp:
     dtype: float64
     timezone: UTC
-    infor: the POSIX_timestamp is stored as a 64-bit floating point number, representing the seconds elapsed since 1970-01-01 00:00 UTC time
+    info: the POSIX_timestamp is stored as a 64-bit floating point number, representing the seconds elapsed since 1970-01-01 00:00 UTC time
