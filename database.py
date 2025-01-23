@@ -2,10 +2,13 @@ import os
 import sys
 import yaml
 import shutil
+import deepdiff
 import datetime
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass,field
+
+from rawDataFile import genericLoggerFile
 
 
 def load():
@@ -18,6 +21,7 @@ def load():
 @dataclass
 class database:
     # Declare the defaults for a database
+    verbose: bool = True
     isDatabase: bool = False
     projectPath: str = None
     logfile: str = ''
@@ -31,9 +35,9 @@ class database:
         self._metadata = os.path.join(self.projectPath,"_metadata.yml")
         self._logfile = os.path.join(self.projectPath,'_logfile.txt')
         self._map = {os.path.join(Y,siteID,level):[]
-                           for Y in self.Years
-                           for siteID in self.siteID
-                           for level in self.level}
+                    for Y in self.Years
+                    for siteID in self.siteID
+                    for level in self.level}
         if not os.path.isdir(self.projectPath):
             self.makeDatabase()
         elif not os.path.isfile(self._metadata) and os.listdir(self.projectPath):
@@ -67,39 +71,60 @@ class database:
             self.logfile = file.read()
     
     def readDatabaseFolder(self,dbpth,filter = None):
-        files = [f for f in os.listdir(dbpth) if filter is None or f in filter]
+        files = [f for f in os.listdir(dbpth) if '.' not in f and (filter is None or f in filter and f)]
         data = {f:np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['defaultFormat'][f]['dtype']) if f in self.metadata['defaultFormat'].keys() 
                 else np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['defaultFormat']['data']['dtype'])
                 for f in files}
-        # print(data['POSIX_timestamp'].shape,data['RecordNumber'].shape)
         df = pd.DataFrame(data = {f:np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['defaultFormat'][f]['dtype']) if f in self.metadata['defaultFormat'].keys() 
                 else np.fromfile(os.path.join(dbpth,f),dtype=self.metadata['defaultFormat']['data']['dtype'])
                 for f in files}
                 )
         if not df.empty:
             df.index=pd.to_datetime(df['POSIX_timestamp'],unit='s')
-        return(df)
+        metadataFile = os.path.join(dbpth,'_metadata.yml')            
+        if os.path.isfile(metadataFile):
+            with open(metadataFile,'r') as file:
+                metadataFile = yaml.safe_load(file)
+        else:
+            metadataFile = None
+        return(df,metadataFile)
         
-    def writeDatabase(self,dataIn,siteID,stage='raw',mode='fill',freq='30min'):
+    def rawDatabaseImport(self,dataIn,metadataIn = genericLoggerFile,stage='raw',mode='fill'):
+        # Ensure safe Header names for writing
+        if self.verbose: print('Replacing non-alphanumeric header names')
+        dataIn.columns = dataIn.columns.str.replace('[^0-9a-zA-Z]+','_',regex=True)
+        # Drop Non-numeric data:
+        if self.verbose: print('Dropping non-numeric data')
+        dataIn = dataIn._get_numeric_data().copy()
         for y in dataIn.index.year.unique():
-            dbpth = os.path.join(self.projectPath,str(y),siteID,stage)
+            dbpth = os.path.join(self.projectPath,str(y),metadataIn['siteID'],stage,metadataIn['subSiteID'])
             if not os.path.isdir(dbpth):
                 os.makedirs(dbpth)
-            fullYear = self.readDatabaseFolder(dbpth)
-            if fullYear.empty:
-                fullYear = pd.DataFrame(index=pd.date_range(str(y),str(y+1),freq=freq,inclusive='right'))
-                fullYear['POSIX_timestamp'] = (fullYear.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-                fullYear = fullYear.join(dataIn)
+            fullYearData,fullYearMetadata = self.readDatabaseFolder(dbpth)
+            if fullYearData.empty:
+                fullYearData = pd.DataFrame(index=pd.date_range(str(y),str(y+1),freq=metadataIn['frequency'],inclusive='right'))
+                fullYearData['POSIX_timestamp'] = (fullYearData.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+                fullYearData = fullYearData.join(dataIn)
             else:
                 if mode == 'fill':
-                    fill_cols = [c for c in dataIn.columns if c in fullYear.columns]
-                    fullYear = fullYear.fillna(dataIn[fill_cols])
+                    fill_cols = [c for c in dataIn.columns if c in fullYearData.columns]
+                    fullYearData = fullYearData.fillna(dataIn[fill_cols])
                 else: fill_cols = []
                 append_cols = [c for c in dataIn.columns if c not in fill_cols]
-                fullYear = fullYear.join(dataIn[append_cols])
-            
-        for col in fullYear.columns:
+                fullYearData = fullYearData.join(dataIn[append_cols])
+            self.writeDatabaseArrays(dbpth,fullYearData)
+            if fullYearMetadata is not None:
+                
+
+                dd = deepdiff.DeepDiff(fullYearMetadata,metadataIn,ignore_order=True)
+                print(dd)
+    
+            with open(os.path.join(dbpth,'_metadata.yml'),'w+') as file:
+                yaml.safe_dump(metadataIn,file,sort_keys=False)
+        
+    def writeDatabaseArrays(self,dbpth,Data):
+        for col in Data.columns:
             if col in self.metadata['defaultFormat'].keys():
-                fullYear[col].astype(self.metadata['defaultFormat'][col]['dtype']).values.tofile(os.path.join(dbpth,col))
+                Data[col].astype(self.metadata['defaultFormat'][col]['dtype']).values.tofile(os.path.join(dbpth,col))
             else:
-                fullYear[col].astype(self.metadata['defaultFormat']['data']['dtype']).values.tofile(os.path.join(dbpth,col))
+                Data[col].astype(self.metadata['defaultFormat']['data']['dtype']).values.tofile(os.path.join(dbpth,col))
