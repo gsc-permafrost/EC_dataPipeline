@@ -6,7 +6,7 @@ from dataclasses import dataclass,field,fields
 
 @dataclass
 class observation:
-    ignore: bool = True
+    ignore: bool = False
     name_in: str = None
     unit_in: str = None
     # unit_out: str = None
@@ -22,10 +22,8 @@ class observation:
     def __post_init__(self):
         if self.name_in is not None:
             self.safe_name = re.sub('[^0-9a-zA-Z]+','_',self.name_in)
-            # if min([self.V,self.H,self.R])>0:
-            #     self.safe_name = '_'.join([str(i) for i in [self.safeName,self.V,self.H,self.R]])
-        self.unit_out = self.unit_in
-
+        self.ignore = not np.issubdtype(self.dtype,np.number)
+        self.dtype = self.dtype.str
 @dataclass
 class genericLoggerFile:
     # Important attributes to be associated with a generic logger file
@@ -59,7 +57,8 @@ class genericLoggerFile:
         newNames = []
         if self.verbose: print('Standardizing and documenting traces')
         for col in self.Data.columns:
-            obs = observation(name_in=col,dtype=self.Data[col].dtype.str)
+            # Generate Metadata for each observation
+            obs = observation(name_in=col,dtype=self.Data[col].dtype)
             if obs.safe_name != obs.name_in and self.verbose:
                 print('Re-named: ',obs.name_in,' to: ',obs.safe_name)
             self.Metadata['Variables'][obs.safe_name] = obs.__dict__
