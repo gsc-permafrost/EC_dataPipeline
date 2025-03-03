@@ -12,20 +12,23 @@ from dataclasses import dataclass,field
 from rawDataFile import genericLoggerFile
 
 
-def load():
-    # read yml template(s)
-    c = os.path.dirname(os.path.abspath(__file__))
-    pth = os.path.join(c,'config_files','databaseMetadata.yml')
-    with open(pth,'r') as f:
-        defaults = yaml.safe_load(f)
-    return(defaults)
+def loadYAML(fpath,verbose=False):
+    try:
+        with open(fpath,'r') as f:
+            return(yaml.safe_load(f))
+    except:
+        if os.path.isfile:print('Could not load: ',fpath)
+        elif verbose:print('Does not exist: ',fpath)
+        return(None)
 
 @dataclass(kw_only=True)
 class database:
     projectPath: str
     verbose: bool = True
     logFile: str = ''
-    metadataFile: dict = field(default_factory=load)
+    metadataFile: dict = field(default_factory=lambda:loadYAML(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml'))
+        )
     
     def __post_init__(self):
         self._metadataFile = os.path.join(self.projectPath,"_metadataFile.yml")
@@ -56,11 +59,10 @@ class database:
 
 
     def openDatabase(self):
-        with open(self._metadataFile) as file:
-            metadata = yaml.safe_load(file)
-            if sum(k not in metadata.keys() for k in self.metadataFile.keys()):
-                sys.exit('Database metadata are corrupted')
-            self.metadataFile = metadata
+        metadata = loadYAML(self._metadataFile)
+        if sum(k not in metadata.keys() for k in self.metadataFile.keys()):
+            sys.exit('Database metadata are corrupted')
+        self.metadataFile = metadata
         with open(self._logFile) as file:
             self.logFile = file.read()
 

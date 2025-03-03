@@ -3,29 +3,29 @@ import numpy as np
 import pandas as pd
 import dateutil.parser as dateParse 
 from dataclasses import dataclass,field,fields
+import NewDev as ND
 
+fillChar = '_'
+sepChar = '-'
         
 @dataclass(kw_only=True)
-class observation:
+class observation(ND.metadataRecord):
     ignore: bool = False
-    name_in: str = None
-    unit_in: str = None
-    # unit_out: str = None
-    # safeName: str = None
-    safe_name: str = None
+    originalName: str = None
+    unit: str = None
     dtype: str = None
     variableDescription: str = None
     # positional variables (vertical, horizontal, repetition)
-    # V: int = None
-    # H: int = None
-    # R: int = None
+    V: int = None
+    H: int = None
+    R: int = None
 
     def __post_init__(self):
-        if self.name_in is not None:
-            self.safe_name = re.sub('[^0-9a-zA-Z]+','_',self.name_in)
-            if len(self.safe_name)>1:
-                self.safe_name = self.safe_name.rstrip('_')
-        self.ignore = not np.issubdtype(self.dtype,np.number) or self.safe_name == '_'
+        if self.originalName is not None:
+            self.variableID = re.sub('[^0-9a-zA-Z]+',fillChar,self.originalName)
+            if len(self.variableID)>1:
+                self.variableID = self.variableID.rstrip(fillChar)
+        self.ignore = not np.issubdtype(self.dtype,np.number) or self.variableID == fillChar
         self.dtype = self.dtype.str
 
 @dataclass(kw_only=True)
@@ -37,7 +37,6 @@ class genericLoggerFile:
     frequency: str = '30min'
     Data: pd.DataFrame = field(default_factory=pd.DataFrame)
 
-
     def __post_init__(self):
         self.Metadata = {}
         for k,v in self.__dataclass_fields__.items():
@@ -47,12 +46,11 @@ class genericLoggerFile:
         newNames = []
         if self.verbose: print('Standardizing and documenting traces')
         for col in self.Data.columns:
-            obs = observation(name_in=col,dtype=self.Data[col].dtype)
-            if obs.safe_name != obs.name_in and self.verbose:
-                print('Re-named: ',obs.name_in,' to: ',obs.safe_name)
-            print(obs)
-            self.Metadata['Variables'][obs.safe_name] = obs.__dict__
-            newNames.append(obs.safe_name)
+            obs = observation(originalName=col,dtype=self.Data[col].dtype)
+            if obs.variableID != obs.originalName and self.verbose:
+                print('Re-named: ',obs.originalName,' to: ',obs.variableID)
+            self.Metadata['Variables'][obs.variableID] = obs.__dict__
+            newNames.append(obs.variableID)
         self.Data.columns = newNames
 
 
