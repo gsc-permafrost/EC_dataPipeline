@@ -1,66 +1,72 @@
 import re
+import yaml
 import numpy as np
 import pandas as pd
 import dateutil.parser as dateParse 
 from dataclasses import dataclass,field,fields
+import helperFunctions
 import NewDev as ND
+import importlib
+importlib.reload(ND)
 
-fillChar = '_'
-sepChar = '-'
-        
-@dataclass(kw_only=True)
-class observation(ND.metadataRecord):
-    ignore: bool = False
-    originalName: str = None
-    unit: str = None
-    dtype: str = None
-    variableDescription: str = None
-    # positional variables (vertical, horizontal, repetition)
-    V: int = None
-    H: int = None
-    R: int = None
-
-    def __post_init__(self):
-        if self.originalName is not None:
-            self.variableID = re.sub('[^0-9a-zA-Z]+',fillChar,self.originalName)
-            if len(self.variableID)>1:
-                self.variableID = self.variableID.rstrip(fillChar)
-        self.ignore = not np.issubdtype(self.dtype,np.number) or self.variableID == fillChar
-        self.dtype = self.dtype.str
+# def helperFunctions.loadDict(fpath,verbose=False):
+#     try:
+#         with open(fpath,'r') as f:
+#             return(yaml.safe_load(f))
+#     except:
+#         if not os.path.isfile(fpath):
+#             if verbose:print('Does not exist: ',fpath)
+#             return({})
+#         else:
+#             if os.path.isfile(fpath):print('Could not load: ',fpath)
+#             return(None)
 
 @dataclass(kw_only=True)
 class genericLoggerFile:
+    varDeffs = 'variableDefinitions'
     source: str = field(repr=False)
-    verbose: bool = True
+    Metadata: dict = field(default_factory=lambda:{},repr=False)
+    verbose: bool = field(default=False,repr=False)
     loggerName: str = None
     timeZone: str = 'UTC'
     frequency: str = '30min'
     Data: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def __post_init__(self):
-        self.Metadata = {}
-        for k,v in self.__dataclass_fields__.items():
-            if v.repr and not v.type == type(pd.DataFrame()):
-                self.Metadata[v.name] = self.__dict__[v.name]     
-        self.Metadata['Variables'] = {}
-        newNames = []
-        if self.verbose: print('Standardizing and documenting traces')
-        for col in self.Data.columns:
-            obs = observation(originalName=col,dtype=self.Data[col].dtype)
-            if obs.variableID != obs.originalName and self.verbose:
-                print('Re-named: ',obs.originalName,' to: ',obs.variableID)
-            self.Metadata['Variables'][obs.variableID] = obs.__dict__
-            newNames.append(obs.variableID)
-        self.Data.columns = newNames
+        if self.Metadata != {}:
+            if type(self.Metadata) == str and os.path.isfile(self.Metadata):
+                self.Metadata = helperFunctions.loadDict(self.Metadata)
+            elif type(self.Metadata) != dict:
+                return
+            self.updateMetadata()
+        else:
+            self.newMetadata()
+    
+    def updateMetadata(self):
+        print(self.Metadata[self.varDeffs])
+        keys = list(self.Metadata[self.varDeffs].keys())
+        for k in keys:
+            args = self.Metadata[self.varDeffs].pop(k)
+            # print(args)
+            obs = ND.observation(**args)
+            helperFunctions.updateDict(self.Metadata[self.varDeffs],obs.record)
 
+    def newMetadata(self):
+        for k,v in self.__dataclass_fields__.items():
+            if v.repr and v.type != type(pd.DataFrame()):
+                self.Metadata[v.name] = self.__dict__[v.name]     
+        self.Metadata[self.varDeffs] = {}
+        for col in self.Data.columns:
+            obs = ND.observation(originalName=col,dtype=self.Data[col].dtype.str,safeName=False)
+            self.Metadata[self.varDeffs][col] = obs.record
 
 @dataclass(kw_only=True)
-class hoboCSV(genericLoggerFile):
+class hoboCSV(ND.genericLoggerFile):
     fileType = "HoboCSV"
     timestamp: str = field(default="Date Time",repr=False)
-    yearfirst: bool = True
+    yearfirst: bool = field(default=True,repr=False)
     statusCols: list = field(default_factory=lambda:['Host Connected', 'Stopped', 'End Of File'], repr=False)
-    excludePattern: list = field(default_factory=lambda:{r"LGR(.*?)LBL: ":''},repr=False)
+    dropCols: list = field(default_factory=lambda:['#'],repr=False)
 
     def __post_init__(self):
         rawFile = open(self.source,'r',encoding='utf-8-sig')
@@ -68,22 +74,17 @@ class hoboCSV(genericLoggerFile):
         if not T.startswith('"Plot Title: '):
             self.fileType = False
         self.Data = pd.read_csv(rawFile)
-        # ID the timestamp and parse to datetime index
-        self.Data.index = self.Data[
-            self.Data.columns[self.Data.columns.str.contains(self.timestamp)].values
-            ].apply(' '.join, axis=1).apply(dateParse.parse,yearfirst=self.yearfirst)
+        #Parse the datetime index
+        Timestamp = self.Data.columns[self.Data.columns.str.contains(self.timestamp)].values
+        self.Data.index = self.Data[Timestamp].apply(' '.join, axis=1).apply(dateParse.parse,yearfirst=self.yearfirst)
+        self.Data = self.Data.drop(columns=Timestamp)
+        #Parse the status variables
         self.statusCols = self.Data.columns[self.Data.columns.str.contains('|'.join(self.statusCols))].values
         self.Data[self.statusCols] = self.Data[self.statusCols].ffill(limit=1)
         keep = pd.isna(self.Data[self.statusCols]).all(axis=1)
         self.Data = self.Data.loc[keep].copy()
         self.Data = self.Data.drop(columns=self.statusCols)
-        
-        shortNames = []
-        for i,c in enumerate(self.Data.columns):
-            for ex,rep in self.excludePattern.items():
-                match = re.search(ex, c)
-                if match is not None:
-                    c = c.replace(match[0],rep)
-            shortNames.append(c)
-        self.Data.columns = shortNames
+        #Remove any other undesirable data
+        self.Data = self.Data.drop(columns=self.dropCols)
+
         super().__post_init__()

@@ -12,26 +12,72 @@ from typing import Literal
 from dataclasses import dataclass, field
 
 
-fillChar = '_'
-sepChar = '-'
+# def helperFunctions.loadDict(fpath,verbose=False):
+#     try:
+#         with open(fpath,'r') as f:
+#             return(yaml.safe_load(f))
+#     except:
+#         if not os.path.isfile(fpath):
+#             if verbose:print('Does not exist: ',fpath)
+#             return({})
+#         else:
+#             if os.path.isfile(fpath):print('Could not load: ',fpath)
+#             return(None)
 
-def loadYAML(fpath,verbose=False):
-    try:
-        with open(fpath,'r') as f:
-            return(yaml.safe_load(f))
-    except:
-        if not os.path.isfile(fpath):
-            if verbose:print('Does not exist: ',fpath)
-            return({})
-        else:
-            if os.path.isfile(fpath):print('Could not load: ',fpath)
-            return(None)
+
+@dataclass
+class metadataRecord:
+    safeName: bool = field(default=True,repr=False)
+    # Formats a metadata entry for either a full site or a specific measurement
+    def __post_init__(self):
+        if self.safeName == True:
+            for k,v in self.__dataclass_fields__.items():
+                if self.__dict__[k] is not None and v.kw_only and v.type == str:
+                    if self.__dataclass_fields__[k].repr:
+                        self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',self.fillChar, self.__dict__[k])
+                    elif 'date' in k:
+                        self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',self.sepChar, self.__dict__[k])
+        self.ID = self.sepChar.join([str(self.__dict__[k]) for k in self.__dataclass_fields__.keys() 
+                                       if self.__dataclass_fields__[k].repr])
+        self.nestDepth = len([1 for k in self.__dataclass_fields__.keys() 
+                                       if self.__dataclass_fields__[k].repr])
+
+        self.record = {}
+        for f,v in self.__dataclass_fields__.items():
+            if f not in metadataRecord.__dataclass_fields__.keys():
+                if self.safeName:
+                    self.record.setdefault(self.ID,{}).setdefault(f,self.__dict__[f])
+                else:
+                    self.record.setdefault(f,self.__dict__[f])
 
 @dataclass(kw_only=True)
-class site:
+class observation(metadataRecord):
+    fillChar = '_'
+    sepChar = '_'
+    # Metadata associated with a single trace
+    variableName: str = None
+    originalName: str = field(repr=False)
+    ignore: bool = field(default=False,repr=False)
+    unit: str = field(default=None,repr=False)
+    dtype: str = field(default=None,repr=False)
+    variableDescription: str = field(default=None,repr=False)
+    # positional variables (vertical, horizontal, replicate)
+    vertical: int = 1
+    horizontal: int = 1
+    replicate: int = 1
+    def __post_init__(self):
+        if self.variableName is None:
+            self.variableName = self.originalName
+        super().__post_init__()
+
+
+@dataclass(kw_only=True)
+class siteRecord(metadataRecord):
+    fillChar = '_'
+    sepChar = '-'
     siteID: str = '.example'
-    measurementID: str = '.site'
-    replicateID: int = 1
+    # measurementID: str = '.site'
+    # replicateID: int = 1
     description: str = field(default=None,repr=False)
     name: str = field(default=None,repr=False)
     PI: str = field(default=None,repr=False)
@@ -41,33 +87,16 @@ class site:
     latitude: float = field(default=None,repr=False)
 
     def __post_init__(self):
-        for k,v in self.__dataclass_fields__.items():
-            if self.__dict__[k] is not None and v.kw_only and v.type == str:
-                if self.__dataclass_fields__[k].repr:
-                    self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',fillChar, self.__dict__[k])
-                elif 'date' in k:
-                    self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',sepChar, self.__dict__[k])
         if self.latitude is not None and self.longitude is not None:
             coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
             self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
-        self.ID = sepChar.join([str(self.__dict__[k]) for k in self.__dataclass_fields__.keys() 
-                                       if self.__dataclass_fields__[k].repr])
-        self.entry = {}
-        for f,v in self.__dataclass_fields__.items():
-            self.entry.setdefault(self.ID,{}).setdefault(f,self.__dict__[f])
-
-@dataclass
-class metadataRecord(site):
-    # Formats a metadata entry for either a full site or a specific measurement
-    def __post_init__(self):
         super().__post_init__()
-        self.entry = {}
-        for f,v in self.__dataclass_fields__.items():
-            self.entry.setdefault(self.ID,{}).setdefault(f,self.__dict__[f])
 
-class siteInventory(metadataRecord):
+class siteInventory(siteRecord):
     def __init__(self,source,overwrite=False,**kwargs):
-        self.siteInventory = metadataRecord().entry
+        si = siteRecord()
+        self.nestDepth = si.nestDepth
+        self.siteInventory = si.record
         self.overwrite = overwrite
         self.load(source)
         if kwargs != {}:
@@ -76,9 +105,9 @@ class siteInventory(metadataRecord):
 
     def load(self,source):
         if os.path.isfile(os.path.join(source,'siteInventory.yml')):
-            si = loadYAML(os.path.join(source,'siteInventory.yml'))
+            si = helperFunctions.loadDict(os.path.join(source,'siteInventory.yml'))
             if si is not None:
-                self.siteInventory = helperFunctions.unpackDict(si,'-',limit=2)
+                self.siteInventory = helperFunctions.unpackDict(si,'-',limit=self.nestDepth-1)
         if os.path.isfile(os.path.join(source,'siteInventory.csv')):
             df = pd.read_csv(os.path.join(source,'siteInventory.csv'),index_col=[0])
             df = df.fillna(np.nan).replace([np.nan], [None])
@@ -91,24 +120,26 @@ class siteInventory(metadataRecord):
         for k,v in kwargs.items():
             if k in self.__dataclass_fields__.keys():
                 args[k] = v
-        self.record = metadataRecord(**args)
-        while self.record.ID in self.siteInventory.keys():
-            self.record.replicateID+=1
+        si = siteRecord(**args)
+        self.nestDepth = si.nestDepth
+        while si.ID in self.siteInventory.keys():
+            si.replicateID+=1
             args['replicateID'] = self.record.replicateID
-            self.record = metadataRecord(**args)
-        self.siteInventory = helperFunctions.updateDict(self.siteInventory,self.record.entry,overwrite=self.overwrite)
-        if list(metadataRecord().entry.keys())[0] in self.siteInventory.keys():
-            self.siteInventory.pop(list(metadataRecord().entry.keys())[0])
+            si = siteRecord(**args)
+        self.siteInventory = helperFunctions.updateDict(self.siteInventory,si.record,overwrite=self.overwrite)
+        print(list(siteRecord().record.keys())[0],self.siteInventory.keys())
+        if list(siteRecord().record.keys())[0] in self.siteInventory.keys():
+            self.siteInventory.pop(list(siteRecord().record.keys())[0])
 
     def save(self,source):
         with open(os.path.join(source,'siteInventory.yml'),'w+') as f:
             # Sort alphabetically by ID, maintaining order of metadata
             # Hacked up to maintain desirable sort order regardless of case or pattern used to represent "blank" values
-            self.siteInventory = {key.replace(fillChar,' '):value for key,value in self.siteInventory.items()}
-            self.siteInventory = {key.replace(' ',fillChar):value for key,value in dict(sorted(self.siteInventory.items())).items()}
-            self.siteInventory = helperFunctions.packDict(copy.deepcopy(self.siteInventory),'-',limit=2,order=1)
+            self.siteInventory = {key.replace(self.fillChar,' '):value for key,value in self.siteInventory.items()}
+            self.siteInventory = {key.replace(' ',self.fillChar):value for key,value in dict(sorted(self.siteInventory.items())).items()}
+            self.siteInventory = helperFunctions.packDict(copy.deepcopy(self.siteInventory),'-',limit=self.nestDepth-1,order=1)
             yaml.safe_dump(self.siteInventory,f,sort_keys=False)
-        self.siteInventory = helperFunctions.unpackDict(self.siteInventory,'-',limit=2)
+        self.siteInventory = helperFunctions.unpackDict(self.siteInventory,'-',limit=self.nestDepth-1)
         index,data = [k for k in self.siteInventory.keys()],[v for v in self.siteInventory.values()]
         df = pd.DataFrame(data = self.siteInventory.values(), index = index)
         df.to_csv(os.path.join(source,'siteInventory.csv'))
@@ -119,7 +150,7 @@ class database:
     overwrite: bool = False
     verbose: bool = True
     logFile: str = ''
-    metadataFile: dict = field(default_factory=lambda:loadYAML(
+    metadataFile: dict = field(default_factory=lambda:helperFunctions.loadDict(
         os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml'))
         )
     
@@ -162,7 +193,7 @@ class database:
         return(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     def openDatabase(self):
-        metadata = loadYAML(self._metadataFile,self.verbose)
+        metadata = helperFunctions.loadDict(self._metadataFile,self.verbose)
         if sum(k not in metadata.keys() for k in self.metadataFile.keys()):
             sys.exit('Database metadata are corrupted')
         self.metadataFile = metadata
