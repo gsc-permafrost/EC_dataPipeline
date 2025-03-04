@@ -76,8 +76,6 @@ class siteRecord(metadataRecord):
     fillChar = '_'
     sepChar = '-'
     siteID: str = '.example'
-    # measurementID: str = '.site'
-    # replicateID: int = 1
     description: str = field(default=None,repr=False)
     name: str = field(default=None,repr=False)
     PI: str = field(default=None,repr=False)
@@ -85,7 +83,6 @@ class siteRecord(metadataRecord):
     landCoverType: str = field(default=None,repr=False)
     longitude: float = field(default=None,repr=False)
     latitude: float = field(default=None,repr=False)
-
     def __post_init__(self):
         if self.latitude is not None and self.longitude is not None:
             coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
@@ -100,7 +97,8 @@ class siteInventory(siteRecord):
         self.overwrite = overwrite
         self.load(source)
         if kwargs != {}:
-            self.updateInventory(kwargs)
+            if 'siteID' in kwargs and kwargs['siteID'] is not None:
+                self.updateInventory(kwargs)
         self.save(source)
 
     def load(self,source):
@@ -122,12 +120,12 @@ class siteInventory(siteRecord):
                 args[k] = v
         si = siteRecord(**args)
         self.nestDepth = si.nestDepth
-        while si.ID in self.siteInventory.keys():
+        while si.ID in self.siteInventory.keys() and self.overwrite == True:
             si.replicateID+=1
             args['replicateID'] = self.record.replicateID
             si = siteRecord(**args)
-        self.siteInventory = helperFunctions.updateDict(self.siteInventory,si.record,overwrite=self.overwrite)
-        print(list(siteRecord().record.keys())[0],self.siteInventory.keys())
+        if si.ID not in self.siteInventory.keys() or self.overwrite:
+            self.siteInventory = helperFunctions.updateDict(self.siteInventory,si.record,overwrite=self.overwrite)
         if list(siteRecord().record.keys())[0] in self.siteInventory.keys():
             self.siteInventory.pop(list(siteRecord().record.keys())[0])
 
@@ -147,6 +145,7 @@ class siteInventory(siteRecord):
 @dataclass
 class database:
     projectPath: str
+    siteID: str = None
     overwrite: bool = False
     verbose: bool = True
     logFile: str = ''
@@ -181,7 +180,6 @@ class database:
         self.metadataFile['Date_created'] = now
         self.metadataFile['Last_modified'] = now
         self.logFile = 'Creating Database: ' + now + '\n'
-        print(self._metadataFile)
         with open(self._metadataFile,'w+') as file:
             if self.verbose:print('Creating: ',self._metadataFile)
             yaml.safe_dump(self.metadataFile,file,sort_keys=False)

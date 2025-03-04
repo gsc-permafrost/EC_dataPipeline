@@ -27,9 +27,8 @@ def findNestedValue(element,nest,delimiter=os.path.sep):
     return rv
 
 
-def loadDict(file):
+def loadDict(file,verbose=False):
     # read a dict from file in either .json or .yml format
-    out = None
     if os.path.isfile(file):
         if file.endswith('.yml'):
             with open(file) as f:
@@ -37,9 +36,10 @@ def loadDict(file):
         elif file.endswith('.json'):
             with open(file) as f:
                 out = json.load(f)
-    else:
+        return(out)                
+    elif verbose:
         print(f"{file} does not exist")
-    return(out)
+    return(None)
 
 def saveDict(obj,outputPath):
     # save a dict (obj) to a file (outputPath) in either .json or .yml format

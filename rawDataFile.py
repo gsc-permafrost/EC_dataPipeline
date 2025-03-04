@@ -1,4 +1,5 @@
 import re
+import os
 import yaml
 import numpy as np
 import pandas as pd
@@ -9,22 +10,12 @@ import NewDev as ND
 import importlib
 importlib.reload(ND)
 
-# def helperFunctions.loadDict(fpath,verbose=False):
-#     try:
-#         with open(fpath,'r') as f:
-#             return(yaml.safe_load(f))
-#     except:
-#         if not os.path.isfile(fpath):
-#             if verbose:print('Does not exist: ',fpath)
-#             return({})
-#         else:
-#             if os.path.isfile(fpath):print('Could not load: ',fpath)
-#             return(None)
-
 @dataclass(kw_only=True)
 class genericLoggerFile:
     varDeffs = 'variableDefinitions'
     source: str = field(repr=False)
+    measurementType: str
+    replicateID: int = 1
     Metadata: dict = field(default_factory=lambda:{},repr=False)
     verbose: bool = field(default=False,repr=False)
     loggerName: str = None
@@ -41,19 +32,19 @@ class genericLoggerFile:
             self.updateMetadata()
         else:
             self.newMetadata()
+        super().__post_init__()
     
     def updateMetadata(self):
         print(self.Metadata[self.varDeffs])
         keys = list(self.Metadata[self.varDeffs].keys())
         for k in keys:
             args = self.Metadata[self.varDeffs].pop(k)
-            # print(args)
             obs = ND.observation(**args)
             helperFunctions.updateDict(self.Metadata[self.varDeffs],obs.record)
 
     def newMetadata(self):
         for k,v in self.__dataclass_fields__.items():
-            if v.repr and v.type != type(pd.DataFrame()):
+            if v.repr and v.type != type(pd.DataFrame()) and k not in ND.database.__dataclass_fields__.keys():
                 self.Metadata[v.name] = self.__dict__[v.name]     
         self.Metadata[self.varDeffs] = {}
         for col in self.Data.columns:
@@ -61,7 +52,7 @@ class genericLoggerFile:
             self.Metadata[self.varDeffs][col] = obs.record
 
 @dataclass(kw_only=True)
-class hoboCSV(ND.genericLoggerFile):
+class hoboCSV(genericLoggerFile,ND.database):
     fileType = "HoboCSV"
     timestamp: str = field(default="Date Time",repr=False)
     yearfirst: bool = field(default=True,repr=False)
