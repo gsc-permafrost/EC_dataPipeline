@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 @dataclass(kw_only=True)
 class metadataRecord:
     fillChar = '_'
-    sepChar = '-'
+    sepChar = os.path.sep
     safeName: bool = field(default=True,repr=False)
     # Formats a metadata entry for either a full site or a specific measurement
     def __post_init__(self):
@@ -166,8 +166,9 @@ class database:
             site = os.path.join(self.projectPath,'sites',siteID)
             if not os.path.isdir(site) and not siteID.startswith('.'):
                 os.makedirs(site)
-                with open(os.path.join(site,'sourceFileInventory.yml'),'w+') as file:
-                    yaml.safe_dump({},file)
+                # with open(os.path.join(site,'sourceFileInventory.yml'),'w+') as file:
+                #     yaml.safe_dump({},file)
+                helperFunctions.saveDict({},os.path.join(site,'sourceFileInventory.json'))
 
             
     # def makeDatabase(self):

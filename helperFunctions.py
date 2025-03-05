@@ -41,13 +41,13 @@ def loadDict(file,verbose=False):
         print(f"{file} does not exist")
     return(None)
 
-def saveDict(obj,outputPath):
+def saveDict(obj,outputPath,sort_keys=False):
     # save a dict (obj) to a file (outputPath) in either .json or .yml format
     if not os.path.isdir(os.path.split(outputPath)[0]):
         os.makedirs(os.path.split(outputPath)[0])
     with open(outputPath,'w') as file:
         if outputPath.endswith('.yml'):
-            yaml.safe_dump(obj,file,sort_keys=False)
+            yaml.safe_dump(obj,file,sort_keys=sort_keys)
         if outputPath.endswith('.json'):
             json.dump(obj,file)
 
