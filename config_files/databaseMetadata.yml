@@ -1,8 +1,17 @@
-defaultFormat:
-  data:
-    dtype: float32
-    info: data are stored as 32-bit floating point numbers
-  POSIX_timestamp:
-    dtype: float64
-    timezone: UTC
-    info: the POSIX_timestamp is stored as a 64-bit floating point number, representing the seconds elapsed since 1970-01-01 00:00 UTC time
+directoryStructure:
+  database:
+    .info: binary database files
+    defaultFormat:
+      data:
+        dtype: float32
+        info: data are stored as 32-bit floating point numbers
+      timestamp:
+        dtype: float64
+        timezone: UTC
+        info: the POSIX_timestamp is stored as a 64-bit floating point number, representing the seconds elapsed since 1970-01-01 00:00 UTC time        
+  metadata: 
+    .info: yaml, json, and csv files containing metadata
+    defaultFormat: null
+  sites: 
+    .info: raw data files from sites
+    defaultFormat: null

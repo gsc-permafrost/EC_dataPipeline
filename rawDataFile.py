@@ -11,11 +11,49 @@ import importlib
 importlib.reload(ND)
 
 @dataclass(kw_only=True)
+class fileInventory(ND.database,ND.metadataRecord):
+    siteID: str = field(repr=False)
+    measurementType: str
+    loggerID: str
+    source: str = field(repr=False)
+    ext: str = field(default='',repr=False)
+    matchPattern: list = field(default_factory=lambda:[],repr=False)
+    excludePattern: list = field(default_factory=lambda:[],repr=False)
+
+    def __post_init__(self):
+        # super(ND.metadataRecord, self).__post_init__()
+        print(type(self).mro())
+        super().__post_init__()
+        # super().
+        print(self.ID)
+        print(self.siteInventory.siteInventory)
+        # sFI = os.path.join(self.projectPath,'sites',self.siteID,'sourceFileInventory.yml')
+        # fileInventory = helperFunctions.loadDict(sFI)
+        # self.measurementID = self.measurementType.replace(' ','_')+'-'+self.loggerID.replace(' ','_')
+        # self.source = os.path.abspath(self.source)
+        # fileInventory.setdefault(self.siteID,{}).setdefault(self.measurementID,{}).setdefault(self.source,{'sourceFiles':[]})
+        # for f,v in self.__dataclass_fields__.items():
+        #     if type(self.__dict__[f]) is not list and v.type is list:
+        #         self.__dict__[f] = [self.__dict__[f]]
+        # for dir,_,files in os.walk(self.source):
+        #     subDir = os.path.relpath(dir,self.source)
+        #     fileInventory[self.siteID][self.measurementID][self.source]['sourceFiles'] += [os.path.join(subDir,f) for f in files 
+        #         if f.endswith(self.ext)
+        #         and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
+        #         and sum([e in f for e in self.excludePattern]) == 0]
+        
+        # with open(sFI,'w+') as file:
+        #     yaml.safe_dump(fileInventory,file,sort_keys=False)
+
+
+
+@dataclass(kw_only=True)
 class genericLoggerFile:
     varDeffs = 'variableDefinitions'
     source: str = field(repr=False)
+    siteID: str
     measurementType: str
-    replicateID: int = 1
+    loggerID: str
     Metadata: dict = field(default_factory=lambda:{},repr=False)
     verbose: bool = field(default=False,repr=False)
     loggerName: str = None

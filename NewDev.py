@@ -11,22 +11,10 @@ import helperFunctions
 from typing import Literal
 from dataclasses import dataclass, field
 
-
-# def helperFunctions.loadDict(fpath,verbose=False):
-#     try:
-#         with open(fpath,'r') as f:
-#             return(yaml.safe_load(f))
-#     except:
-#         if not os.path.isfile(fpath):
-#             if verbose:print('Does not exist: ',fpath)
-#             return({})
-#         else:
-#             if os.path.isfile(fpath):print('Could not load: ',fpath)
-#             return(None)
-
-
-@dataclass
+@dataclass(kw_only=True)
 class metadataRecord:
+    fillChar = '_'
+    sepChar = '-'
     safeName: bool = field(default=True,repr=False)
     # Formats a metadata entry for either a full site or a specific measurement
     def __post_init__(self):
@@ -144,59 +132,72 @@ class siteInventory(siteRecord):
 
 @dataclass
 class database:
-    projectPath: str
-    siteID: str = None
-    overwrite: bool = False
-    verbose: bool = True
-    logFile: str = ''
+    projectPath: str = field(repr=False)
+    siteID: str = field(default=None,repr=False)
+    overwrite: bool = field(default=False,repr=False)
+    verbose: bool = field(default=True,repr=False)
     metadataFile: dict = field(default_factory=lambda:helperFunctions.loadDict(
         os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml'))
-        )
+        ,repr=False)
     
     def __post_init__(self):
-        self.mdPath = os.path.join(self.projectPath,'metadata')
-        self._metadataFile = os.path.join(self.mdPath,"_metadataFile.yml")
-        self._logFile = os.path.join(self.mdPath,'_logFile.txt')
+        try:
+            super().__post_init__()
+        except:
+            pass
         if not os.path.isdir(self.projectPath) or len(os.listdir(self.projectPath)) == 0:
-            self.makeDatabase()
-        elif not os.path.isfile(self._metadataFile) and os.listdir(self.projectPath):
+            self.metadataFile['.dateCreated'] = self.now()
+            self.metadataFile['.dateModified'] = self.now()
+            for d in self.metadataFile['directoryStructure']:
+                os.makedirs(os.path.join(self.projectPath,d))
+        elif not os.path.isfile(os.path.join(self.projectPath,'projectInfo.yml')):
            sys.exit('Non-empty, non-project directory provided')
         else:
-            self.openDatabase()
+            self.metadataFile = helperFunctions.loadDict(os.path.join(self.projectPath,'projectInfo.yml'))
+            self.metadataFile['.dateModified'] = self.now()
+
         self._siteInventory(overwrite=self.overwrite)
+        with open(os.path.join(self.projectPath,'projectInfo.yml'),'w+') as file:
+            yaml.safe_dump(self.metadataFile,file)
 
     def _siteInventory(self,**kwargs):
-        self.siteInventory = siteInventory(self.mdPath,**kwargs)
+        self.siteInventory = siteInventory(os.path.join(self.projectPath,'metadata'),**kwargs)
+        for siteID in self.siteInventory.siteInventory:
+            site = os.path.join(self.projectPath,'sites',siteID)
+            if not os.path.isdir(site) and not siteID.startswith('.'):
+                os.makedirs(site)
+                with open(os.path.join(site,'sourceFileInventory.yml'),'w+') as file:
+                    yaml.safe_dump({},file)
+
             
-    def makeDatabase(self):
-        if self.verbose:print('Initializing empty database')
-        if not os.path.isdir(self.projectPath):
-            os.makedirs(self.projectPath)
-            if self.verbose:print('Creating: ',self.mdPath)
-        if not os.path.isdir(self.mdPath):
-            os.mkdir(self.mdPath)
-            if self.verbose:print('Creating: ',self.mdPath)
-        now = self.now()
-        self.metadataFile['Date_created'] = now
-        self.metadataFile['Last_modified'] = now
-        self.logFile = 'Creating Database: ' + now + '\n'
-        with open(self._metadataFile,'w+') as file:
-            if self.verbose:print('Creating: ',self._metadataFile)
-            yaml.safe_dump(self.metadataFile,file,sort_keys=False)
-        with open(self._logFile,'w+') as file:
-            if self.verbose:print('Creating: ',self._logFile)
-            file.write(self.logFile)
+    # def makeDatabase(self):
+    #     if self.verbose:print('Initializing empty database')
+    #     if not os.path.isdir(self.projectPath):
+    #         os.makedirs(self.projectPath)
+    #         if self.verbose:print('Creating: ',self.mdPath)
+    #     if not os.path.isdir(self.mdPath):
+    #         os.mkdir(self.mdPath)
+    #         if self.verbose:print('Creating: ',self.mdPath)
+    #     self.metadataFile['Date_created'] = now
+    #     self.metadataFile['Last_modified'] = now
+    #     self.logFile = 'Database Created: ' + now + '\n'
+    #     with open(self._metadataFile,'w+') as file:
+    #         if self.verbose:print('Creating: ',self._metadataFile)
+    #         yaml.safe_dump(self.metadataFile,file,sort_keys=False)
+    #     with open(self._logFile,'w+') as file:
+    #         if self.verbose:print('Creating: ',self._logFile)
+    #         file.write(self.logFile)
 
     def now(self):
         return(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
-    def openDatabase(self):
-        metadata = helperFunctions.loadDict(self._metadataFile,self.verbose)
-        if sum(k not in metadata.keys() for k in self.metadataFile.keys()):
-            sys.exit('Database metadata are corrupted')
-        self.metadataFile = metadata
-        with open(self._logFile) as file:
-            self.logFile = file.read()
+    # def openDatabase(self):
+    #     metadata = helperFunctions.loadDict(self._metadataFile,self.verbose)
+    #     if sum(k not in metadata.keys() for k in self.metadataFile.keys()):
+    #         sys.exit('Database metadata are corrupted')
+    #     self.metadataFile = metadata
+    #     with open(self._logFile) as file:
+    #         self.logFile = file.read()
 
 @dataclass(kw_only=True)
 class rawDatabaseImport(database):
