@@ -10,31 +10,27 @@ import helperFunctions
 import NewDev as ND
 import importlib
 importlib.reload(ND)
+importlib.reload(helperFunctions)
 
 @dataclass(kw_only=True)
-class measurementInventory(ND.loggerFile):
-    ID: str = field(default=None,repr=False)
-    siteID: str = field(repr=False)
-    measurementType: str = None
+class measurementInventory(ND.metadataRecord):
+    # siteID: str = None
+    fileType: str = field(default=None,repr=None)
+    description: str = field(default=None,repr=False)
     def __post_init__(self):
         mI = os.path.join(self.projectPath,'metadata',self.siteID,'measurementInventory.yml')
         self.measurementInventory = helperFunctions.loadDict(mI)
         if self.ID is None and self.measurementType is None:
             sys.exit('Requires measurement type or ID')
-        # elif self.measurementType is None:
-        #     for k,v in  self.measurementInventory[self.ID].items():
-        #         self.__dict__[k] = v
-
-        super().__post_init__()
-        print(self.siteID)
-        print(self.__dict__)
-        # helperFunctions.updateDict(self.measurementInventory,self.record,overwrite=self.overwrite)
-        # helperFunctions.saveDict(self.measurementInventory,mI)
-        print(self.record)
-        # print(self.overwrite)
+        elif self.measurementType is not None:
+            super().__post_init__()            
+            helperFunctions.updateDict(self.measurementInventory,self.record,overwrite=self.overwrite)
+            helperFunctions.saveDict(self.measurementInventory,mI)
+        else:
+            self.record = {self.ID:self.measurementInventory[self.ID]}
 
 @dataclass(kw_only=True)
-class fileInventory(ND.loggerFile):
+class fileInventory(measurementInventory):
     source: str = field(repr=False)
     ext: str = field(default='',repr=False)
     matchPattern: list = field(default_factory=lambda:[],repr=False)
@@ -42,24 +38,24 @@ class fileInventory(ND.loggerFile):
 
     def __post_init__(self):
         super().__post_init__()
-        for f,v in self.__dataclass_fields__.items():
-            if type(self.__dict__[f]) is not list and v.type is list:
-                self.__dict__[f] = [self.__dict__[f]]
-        # sFI = os.path.join(self.projectPath,'metadata',self.siteID,'sourcefileInventory.json')
-        self.fileInventory = helperFunctions.loadDict(self.sourceInventory[self.siteID])
-        self.source = os.path.abspath(self.source)
-        self.fileInventory.setdefault(self.siteID,{}).setdefault(self.ID,{}).setdefault(self.source,[])
-        for dir,_,files in os.walk(self.source):
-            subDir = os.path.relpath(dir,self.source)
-            fileList = self.fileInventory[self.siteID][self.ID][self.source]
-            fileList += [[os.path.join(subDir,f),False] for f in files 
-                if f.endswith(self.ext)
-                and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
-                and sum([e in f for e in self.excludePattern]) == 0
-                and [os.path.join(subDir,f),False] not in fileList
-                and [os.path.join(subDir,f),True] not in fileList]       
+        # for f,v in self.__dataclass_fields__.items():
+        #     if type(self.__dict__[f]) is not list and v.type is list:
+        #         self.__dict__[f] = [self.__dict__[f]]
+        # # sFI = os.path.join(self.projectPath,'metadata',self.siteID,'sourcefileInventory.json')
+        # self.fileInventory = helperFunctions.loadDict(self.sourceInventory[self.siteID])
+        # self.source = os.path.abspath(self.source)
+        # self.fileInventory.setdefault(self.siteID,{}).setdefault(self.ID,{}).setdefault(self.source,[])
+        # for dir,_,files in os.walk(self.source):
+        #     subDir = os.path.relpath(dir,self.source)
+        #     fileList = self.fileInventory[self.siteID][self.ID][self.source]
+        #     fileList += [[os.path.join(subDir,f),False] for f in files 
+        #         if f.endswith(self.ext)
+        #         and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
+        #         and sum([e in f for e in self.excludePattern]) == 0
+        #         and [os.path.join(subDir,f),False] not in fileList
+        #         and [os.path.join(subDir,f),True] not in fileList]       
 
-        helperFunctions.saveDict(self.fileInventory,self.sourceInventory[self.siteID])
+        # helperFunctions.saveDict(self.fileInventory,self.sourceInventory[self.siteID])
 
 # @dataclass(kw_only=True)
 # class genericLoggerFile:
@@ -87,7 +83,6 @@ class fileInventory(ND.loggerFile):
 #         super().__post_init__()
     
 #     def updateMetadata(self):
-#         print(self.Metadata[self.varDeffs])
 #         keys = list(self.Metadata[self.varDeffs].keys())
 #         for k in keys:
 #             args = self.Metadata[self.varDeffs].pop(k)

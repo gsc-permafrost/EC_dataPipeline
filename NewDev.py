@@ -46,6 +46,10 @@ class database:
 
 @dataclass(kw_only=True)
 class metadataRecord(database):
+    siteID: str = None
+    measurementType: str = None
+    loggerID: str = None
+    ID: str = field(default=None,repr=False)
     safeName: bool = field(default=True,repr=False)
     # Formats a metadata entry for either a full site or a specific measurement
     def __post_init__(self):
@@ -56,11 +60,11 @@ class metadataRecord(database):
                         self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',self.fillChar, self.__dict__[k])
                     elif 'date' in k:
                         self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',self.sepChar, self.__dict__[k])
-        self.ID = self.sepChar.join([str(self.__dict__[k]) for k in self.__dataclass_fields__.keys() 
-                                       if self.__dataclass_fields__[k].repr])
-        self.nestDepth = len([1 for k in self.__dataclass_fields__.keys() 
-                                       if self.__dataclass_fields__[k].repr])
-
+        ID = [str(self.__dict__[k]) for k in metadataRecord.__dataclass_fields__.keys() 
+                                    if self.__dataclass_fields__[k].repr and
+                                    (self.__dict__[k] is not None or k =='siteID')]
+        self.nestDepth = len(ID)
+        self.ID = self.sepChar.join(ID)
         self.record = {}
         for f,v in self.__dataclass_fields__.items():
             if f not in metadataRecord.__dataclass_fields__.keys():
@@ -88,12 +92,12 @@ class observation(metadataRecord):
             self.variableName = self.originalName
         super().__post_init__()
 
-@dataclass(kw_only=True)
-class loggerFile(metadataRecord):
-    loggerID: str = None
-    fileType: str = field(default=None,repr=None)
-    def __post_init__(self):
-        super().__post_init__()
+# @dataclass(kw_only=True)
+# class loggerFile(metadataRecord):
+#     loggerID: str = None
+#     fileType: str = field(default=None,repr=None)
+#     def __post_init__(self):
+#         super().__post_init__()
 
 @dataclass(kw_only=True)
 class siteRecord(metadataRecord):
@@ -194,19 +198,19 @@ class siteInventory(siteRecord):
     #     with open(self._logFile) as file:
     #         self.logFile = file.read()
 
-@dataclass(kw_only=True)
-class rawDatabaseImport(database):
-    stage = 'raw'
-    measurementID: str
-    dataIn: pd.DataFrame
-    metadataIn: dict
-    mode: Literal['fill','overwrite'] = 'fill'
+# @dataclass(kw_only=True)
+# class rawDatabaseImport(database):
+#     stage = 'raw'
+#     measurementID: str
+#     dataIn: pd.DataFrame
+#     metadataIn: dict
+#     mode: Literal['fill','overwrite'] = 'fill'
     
-    def __post_init__(self):
-        super().__post_init__()
-        keep = []
-        for trace,details in self.metadataIn['Variables'].items():
-            print(trace,details)
+#     def __post_init__(self):
+#         super().__post_init__()
+#         keep = []
+#         for trace,details in self.metadataIn['Variables'].items():
+#             print(trace,details)
         #     if not details['ignore']: keep.append(trace)
         # self.dataIn = self.dataIn[keep].copy()
         # for y in self.dataIn.index.year.unique():

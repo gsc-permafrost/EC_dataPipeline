@@ -176,7 +176,7 @@ def packDict(itemList,format=os.path.sep,limit=None,order=-1,fill=None):
     return(Tree)
 
 def updateDict(base,new,overwrite=False):
-    if base == new: return
+    if base == new: return(base)
     # more comprehensive way to update items in a nested dict
     for key,value in new.items():
         if type(base) is dict and key not in base.keys():
