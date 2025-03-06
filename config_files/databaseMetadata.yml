@@ -12,6 +12,6 @@ directoryStructure:
   metadata: 
     .info: yaml, json, and csv files containing metadata
     defaultFormat: null
-  sites: 
-    .info: raw data files from sites
-    defaultFormat: null
+  # sites: 
+  #   .info: raw data files from sites
+  #   defaultFormat: null

@@ -11,10 +11,41 @@ import helperFunctions
 from typing import Literal
 from dataclasses import dataclass, field
 
+class _base(object):
+    def __post_init__(self):
+        # just intercept the __post_init__ calls so they
+        # aren't relayed to `object`
+        pass
+
 @dataclass(kw_only=True)
-class metadataRecord:
+class database:
     fillChar = '_'
-    sepChar = os.path.sep
+    sepChar = '-'
+    projectPath: str = field(repr=False)
+    overwrite: bool = field(default=False,repr=False)
+    verbose: bool = field(default=True,repr=False)
+    metadataFile: dict = field(default_factory=lambda:helperFunctions.loadDict(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml'))
+        ,repr=False)
+    
+    def __post_init__(self):
+        if not os.path.isdir(self.projectPath) or len(os.listdir(self.projectPath)) == 0:
+            self.metadataFile['.dateCreated'] = self.now()
+            self.metadataFile['.dateModified'] = self.now()
+            for d in self.metadataFile['directoryStructure']:
+                os.makedirs(os.path.join(self.projectPath,d))
+        elif not os.path.isfile(os.path.join(self.projectPath,'projectInfo.yml')):
+           sys.exit('Non-empty, non-project directory provided')
+        else:
+            self.metadataFile = helperFunctions.loadDict(os.path.join(self.projectPath,'projectInfo.yml'))
+            self.metadataFile['.dateModified'] = self.now()
+        helperFunctions.saveDict(self.metadataFile,os.path.join(self.projectPath,'projectInfo.yml'))
+
+    def now(self):
+        return(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+@dataclass(kw_only=True)
+class metadataRecord(database):
     safeName: bool = field(default=True,repr=False)
     # Formats a metadata entry for either a full site or a specific measurement
     def __post_init__(self):
@@ -37,11 +68,10 @@ class metadataRecord:
                     self.record.setdefault(self.ID,{}).setdefault(f,self.__dict__[f])
                 else:
                     self.record.setdefault(f,self.__dict__[f])
+        super().__post_init__()
 
 @dataclass(kw_only=True)
 class observation(metadataRecord):
-    fillChar = '_'
-    sepChar = '_'
     # Metadata associated with a single trace
     variableName: str = None
     originalName: str = field(repr=False)
@@ -58,12 +88,16 @@ class observation(metadataRecord):
             self.variableName = self.originalName
         super().__post_init__()
 
+@dataclass(kw_only=True)
+class loggerFile(metadataRecord):
+    loggerID: str = None
+    fileType: str = field(default=None,repr=None)
+    def __post_init__(self):
+        super().__post_init__()
 
 @dataclass(kw_only=True)
 class siteRecord(metadataRecord):
-    fillChar = '_'
-    sepChar = '-'
-    siteID: str = '.example'
+    siteID: str = None
     description: str = field(default=None,repr=False)
     name: str = field(default=None,repr=False)
     PI: str = field(default=None,repr=False)
@@ -77,98 +111,61 @@ class siteRecord(metadataRecord):
             self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
         super().__post_init__()
 
+@dataclass(kw_only=True)
 class siteInventory(siteRecord):
-    def __init__(self,source,overwrite=False,**kwargs):
-        si = siteRecord()
-        self.nestDepth = si.nestDepth
-        self.siteInventory = si.record
-        self.overwrite = overwrite
-        self.load(source)
-        if kwargs != {}:
-            if 'siteID' in kwargs and kwargs['siteID'] is not None:
-                self.updateInventory(kwargs)
-        self.save(source)
+    overwrite: bool = field(default=False,repr=False)
 
-    def load(self,source):
-        if os.path.isfile(os.path.join(source,'siteInventory.yml')):
-            si = helperFunctions.loadDict(os.path.join(source,'siteInventory.yml'))
-            if si is not None:
-                self.siteInventory = helperFunctions.unpackDict(si,'-',limit=self.nestDepth-1)
-        if os.path.isfile(os.path.join(source,'siteInventory.csv')):
-            df = pd.read_csv(os.path.join(source,'siteInventory.csv'),index_col=[0])
+    def __post_init__(self):
+        super().__post_init__()
+        self.load()
+        self.updateInventory()
+        self.save()
+
+    def load(self):
+        si = os.path.join(self.projectPath,'siteInventory.yml')
+        self.siteInventory = helperFunctions.unpackDict(helperFunctions.loadDict(si),self.sepChar,self.nestDepth-1)
+        if os.path.isfile(os.path.join(self.projectPath,'siteInventory.csv')):
+            df = pd.read_csv(os.path.join(self.projectPath,'siteInventory.csv'),index_col=[0])
             df = df.fillna(np.nan).replace([np.nan], [None])
             for ix,row in df.iterrows():
-                if ix not in self.siteInventory.keys():
+                if ix not in self.siteInventory.keys() and not pd.isna(ix):
                     self.updateInventory(row.to_dict())
     
-    def updateInventory(self,kwargs):
-        args = {}
-        for k,v in kwargs.items():
-            if k in self.__dataclass_fields__.keys():
-                args[k] = v
-        si = siteRecord(**args)
-        self.nestDepth = si.nestDepth
-        while si.ID in self.siteInventory.keys() and self.overwrite == True:
-            si.replicateID+=1
-            args['replicateID'] = self.record.replicateID
+    def updateInventory(self,args=None):
+        if args is not None:
+            args['projectPath'] = self.projectPath
             si = siteRecord(**args)
-        if si.ID not in self.siteInventory.keys() or self.overwrite:
-            self.siteInventory = helperFunctions.updateDict(self.siteInventory,si.record,overwrite=self.overwrite)
-        if list(siteRecord().record.keys())[0] in self.siteInventory.keys():
-            self.siteInventory.pop(list(siteRecord().record.keys())[0])
+            self.nestDepth = si.nestDepth
+            self.record = si.record
+            self.ID = si.ID
+        if self.ID not in self.siteInventory.keys() or self.overwrite:
+            self.siteInventory = helperFunctions.updateDict(self.siteInventory,self.record,overwrite=self.overwrite)
+        if 'None' in self.siteInventory.keys() and len(self.siteInventory.keys())>1:
+            self.siteInventory.pop('None')
 
-    def save(self,source):
-        with open(os.path.join(source,'siteInventory.yml'),'w+') as f:
-            # Sort alphabetically by ID, maintaining order of metadata
-            # Hacked up to maintain desirable sort order regardless of case or pattern used to represent "blank" values
-            self.siteInventory = {key.replace(self.fillChar,' '):value for key,value in self.siteInventory.items()}
-            self.siteInventory = {key.replace(' ',self.fillChar):value for key,value in dict(sorted(self.siteInventory.items())).items()}
-            self.siteInventory = helperFunctions.packDict(copy.deepcopy(self.siteInventory),'-',limit=self.nestDepth-1,order=1)
-            yaml.safe_dump(self.siteInventory,f,sort_keys=False)
-        self.siteInventory = helperFunctions.unpackDict(self.siteInventory,'-',limit=self.nestDepth-1)
+    def save(self):
+        # Sort alphabetically by ID, maintaining order of metadata
+        # Hacked up to maintain desirable sort order regardless of case or pattern used to represent "blank" values
+        self.siteInventory = {key.replace(self.fillChar,' '):value for key,value in self.siteInventory.items()}
+        self.siteInventory = {key.replace(' ',self.fillChar):value for key,value in dict(sorted(self.siteInventory.items())).items()}
+        self.siteInventory = helperFunctions.packDict(copy.deepcopy(self.siteInventory),self.sepChar,limit=self.nestDepth-1,order=1)
+        helperFunctions.saveDict(self.siteInventory,os.path.join(self.projectPath,'siteInventory.yml'))
+        self.siteInventory = helperFunctions.unpackDict(self.siteInventory,self.sepChar,limit=self.nestDepth-1)
         index,data = [k for k in self.siteInventory.keys()],[v for v in self.siteInventory.values()]
         df = pd.DataFrame(data = self.siteInventory.values(), index = index)
-        df.to_csv(os.path.join(source,'siteInventory.csv'))
+        df.to_csv(os.path.join(self.projectPath,'siteInventory.csv'))
 
-@dataclass
-class database:
-    projectPath: str = field(repr=False)
-    siteID: str = field(default=None,repr=False)
-    overwrite: bool = field(default=False,repr=False)
-    verbose: bool = field(default=True,repr=False)
-    metadataFile: dict = field(default_factory=lambda:helperFunctions.loadDict(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml'))
-        ,repr=False)
-    
-    def __post_init__(self):
-        try:
-            super().__post_init__()
-        except:
-            pass
-        if not os.path.isdir(self.projectPath) or len(os.listdir(self.projectPath)) == 0:
-            self.metadataFile['.dateCreated'] = self.now()
-            self.metadataFile['.dateModified'] = self.now()
-            for d in self.metadataFile['directoryStructure']:
-                os.makedirs(os.path.join(self.projectPath,d))
-        elif not os.path.isfile(os.path.join(self.projectPath,'projectInfo.yml')):
-           sys.exit('Non-empty, non-project directory provided')
-        else:
-            self.metadataFile = helperFunctions.loadDict(os.path.join(self.projectPath,'projectInfo.yml'))
-            self.metadataFile['.dateModified'] = self.now()
 
-        self._siteInventory(overwrite=self.overwrite)
-        with open(os.path.join(self.projectPath,'projectInfo.yml'),'w+') as file:
-            yaml.safe_dump(self.metadataFile,file)
 
-    def _siteInventory(self,**kwargs):
-        self.siteInventory = siteInventory(os.path.join(self.projectPath,'metadata'),**kwargs)
-        for siteID in self.siteInventory.siteInventory:
-            site = os.path.join(self.projectPath,'sites',siteID)
-            if not os.path.isdir(site) and not siteID.startswith('.'):
-                os.makedirs(site)
-                # with open(os.path.join(site,'sourceFileInventory.yml'),'w+') as file:
-                #     yaml.safe_dump({},file)
-                helperFunctions.saveDict({},os.path.join(site,'sourceFileInventory.json'))
+    # def _siteInventory(self, **kwargs):
+    #     self.siteInventory = siteInventory(os.path.join(self.projectPath,'metadata'),**kwargs)
+    #     self.sourceInventory = {}
+    #     for siteID in self.siteInventory.siteInventory:
+    #         site = os.path.join(self.projectPath,'metadata',siteID)
+    #         self.sourceInventory[siteID] = os.path.join(site,'fileInventory.json')
+    #         if not os.path.isdir(site) and not siteID.startswith('.'):
+    #             os.makedirs(site)
+    #             helperFunctions.saveDict({'measurements':{},'sourceFiles':{}},self.sourceInventory[siteID])
 
             
     # def makeDatabase(self):
@@ -188,9 +185,6 @@ class database:
     #     with open(self._logFile,'w+') as file:
     #         if self.verbose:print('Creating: ',self._logFile)
     #         file.write(self.logFile)
-
-    def now(self):
-        return(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     # def openDatabase(self):
     #     metadata = helperFunctions.loadDict(self._metadataFile,self.verbose)

@@ -27,7 +27,8 @@ def findNestedValue(element,nest,delimiter=os.path.sep):
     return rv
 
 
-def loadDict(file,verbose=False):
+def loadDict(file,verbose=False,safemode=False):
+    file = os.path.abspath(file)
     # read a dict from file in either .json or .yml format
     if os.path.isfile(file):
         if file.endswith('.yml'):
@@ -35,13 +36,17 @@ def loadDict(file,verbose=False):
                 out = yaml.safe_load(f)
         elif file.endswith('.json'):
             with open(file) as f:
-                out = json.load(f)
-        return(out)                
+                out = json.load(f)   
+    elif not safemode:
+        if verbose: print(f"{file} does not exist, creating empty file")
+        out = {}
+        saveDict(out,file)
     elif verbose:
+        out = None
         print(f"{file} does not exist")
-    return(None)
+    return(out)
 
-def saveDict(obj,outputPath,sort_keys=False):
+def saveDict(obj,outputPath,sort_keys=False,indent=None):
     # save a dict (obj) to a file (outputPath) in either .json or .yml format
     if not os.path.isdir(os.path.split(outputPath)[0]):
         os.makedirs(os.path.split(outputPath)[0])
@@ -49,7 +54,7 @@ def saveDict(obj,outputPath,sort_keys=False):
         if outputPath.endswith('.yml'):
             yaml.safe_dump(obj,file,sort_keys=sort_keys)
         if outputPath.endswith('.json'):
-            json.dump(obj,file)
+            json.dump(obj,file,indent=indent)
 
 def repForbid(txt):
     # remove problematic characters from filepaths
