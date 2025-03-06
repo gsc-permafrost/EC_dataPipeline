@@ -175,7 +175,7 @@ def packDict(itemList,format=os.path.sep,limit=None,order=-1,fill=None):
         Tree = updateDict(Tree,subTree,overwrite='append')
     return(Tree)
 
-def updateDict(base,new,overwrite=False):
+def updateDict(base,new,overwrite=False,verbose=False):
     if base == new: return(base)
     # more comprehensive way to update items in a nested dict
     for key,value in new.items():
@@ -194,7 +194,7 @@ def updateDict(base,new,overwrite=False):
             base[key].append(value)
         elif base[key] is None:
             base[key] = value
-        else:
+        elif overwrite:
             print(f'overwrite = {overwrite} will not update matching keys: ',base[key],value)
             # sys.exit('updateDict exception:  fix update exception!')
     return(base) 

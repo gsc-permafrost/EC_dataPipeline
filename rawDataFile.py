@@ -4,6 +4,7 @@ import sys
 import yaml
 import numpy as np
 import pandas as pd
+import siteCoordinates
 import dateutil.parser as dateParse 
 from dataclasses import dataclass,field
 import helperFunctions
@@ -12,25 +13,26 @@ import importlib
 importlib.reload(ND)
 importlib.reload(helperFunctions)
 
-@dataclass(kw_only=True)
-class measurementInventory(ND.metadataRecord):
-    # siteID: str = None
-    fileType: str = field(default=None,repr=None)
-    description: str = field(default=None,repr=False)
-    def __post_init__(self):
-        mI = os.path.join(self.projectPath,'metadata',self.siteID,'measurementInventory.yml')
-        self.measurementInventory = helperFunctions.loadDict(mI)
-        if self.ID is None and self.measurementType is None:
-            sys.exit('Requires measurement type or ID')
-        elif self.measurementType is not None:
-            super().__post_init__()            
-            helperFunctions.updateDict(self.measurementInventory,self.record,overwrite=self.overwrite)
-            helperFunctions.saveDict(self.measurementInventory,mI)
-        else:
-            self.record = {self.ID:self.measurementInventory[self.ID]}
+        # print(self.inventory)
+
+        # self.measurementInventory = helperFunctions.loadDict(mI)
+        # if self.ID is None and self.measurementType is None:
+        #     sys.exit('Requires measurement type or ID')
+        # elif self.ID is None:
+        #     record = None
+        # else:
+        #     record = self.measurementInventory[self.ID]
+        # super().__post_init__()  
+
+        # # elif self.measurementType is not None:
+        # #     super().__post_init__()            
+        # helperFunctions.updateDict(self.measurementInventory,self.record,overwrite=self.overwrite)
+        # helperFunctions.saveDict(self.measurementInventory,mI)
+        # else:
+        #     self.record = {self.ID:self.measurementInventory[self.ID]}
 
 @dataclass(kw_only=True)
-class fileInventory(measurementInventory):
+class fileInventory(ND.measurementInventory):
     source: str = field(repr=False)
     ext: str = field(default='',repr=False)
     matchPattern: list = field(default_factory=lambda:[],repr=False)
