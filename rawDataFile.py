@@ -5,7 +5,6 @@ import yaml
 import numpy as np
 import pandas as pd
 import siteCoordinates
-import dateutil.parser as dateParse 
 from dataclasses import dataclass,field
 import helperFunctions
 import NewDev as ND
@@ -32,17 +31,22 @@ importlib.reload(helperFunctions)
         #     self.record = {self.ID:self.measurementInventory[self.ID]}
 
 @dataclass(kw_only=True)
-class fileInventory(ND.measurementInventory):
+class fileInventory(ND.metadataRecord):
     source: str = field(repr=False)
     ext: str = field(default='',repr=False)
     matchPattern: list = field(default_factory=lambda:[],repr=False)
     excludePattern: list = field(default_factory=lambda:[],repr=False)
 
     def __post_init__(self):
+        if self.siteID == 'siteID' and self.ID is not None:
+            self.parseID()
+        self.source = os.path.abspath(self.source)
+        for f,v in self.__dataclass_fields__.items():
+            if type(self.__dict__[f]) is not list and v.type is list:
+                self.__dict__[f] = [self.__dict__[f]]
+                
+        fI = os.path.join(self.projectPath,'metadata',self.siteID,'measurementInventory.yml')
         super().__post_init__()
-        # for f,v in self.__dataclass_fields__.items():
-        #     if type(self.__dict__[f]) is not list and v.type is list:
-        #         self.__dict__[f] = [self.__dict__[f]]
         # # sFI = os.path.join(self.projectPath,'metadata',self.siteID,'sourcefileInventory.json')
         # self.fileInventory = helperFunctions.loadDict(self.sourceInventory[self.siteID])
         # self.source = os.path.abspath(self.source)

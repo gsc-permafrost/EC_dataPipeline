@@ -97,7 +97,6 @@ class metadataRecord(database):
                     self.record.setdefault(self.ID,{}).setdefault(f,self.__dict__[f])
                 else:
                     self.record.setdefault(f,self.__dict__[f])
-        print(self.record)
         if inventoryFile is not None or self.overwrite:
             helperFunctions.updateDict(self.inventory,self.record,overwrite=self.overwrite)
             if 'siteID' in self.inventory.keys() and len(self.inventory.keys())>1:
@@ -133,19 +132,12 @@ class siteInventory(metadataRecord):
         else:
             si = os.path.join(self.projectPath,'metadata','siteInventory.yml')
         super().__post_init__(inventoryFile=si)
-        if self.startDate is not None:
-            self.startYear = dateParse.parse(self.startDate).year
-            if self.endDate is not None:
-                self.endYear = dateParse.parse(self.endDate).year
-            else: self.endYear = datetime.datetime.now().year
-            for yr in range(self.startYear,self.endYear+1):
-                db = os.path.join(self.projectPath,'database',self.siteID,str(yr))
-                os.makedirs(db,exist_ok=True)
 
 @dataclass(kw_only=True)
 class measurementInventory(metadataRecord):
+    siteID: str = field(default='siteID',repr=False)
     description: str = field(default=None,repr=False)
-    frequency: str = None
+    frequency: str = field(default=None,repr=False)
     fileType: str = field(default=None,repr=None)
     startDate: str = field(default=None,repr=False)
     endDate: str = field(default=None,repr=False)
@@ -168,6 +160,16 @@ class measurementInventory(metadataRecord):
         else:
             mI = os.path.join(self.projectPath,'metadata',self.siteID,'measurementInventory.yml')
         super().__post_init__(mI)
+        subsiteID = self.ID.lstrip(self.sepChar+self.siteID)
+        os.makedirs(os.path.join(self.projectPath,'metadata',self.siteID,subsiteID),exist_ok=True)
+        if self.startDate is not None and self.siteID != 'siteID':
+            self.startYear = dateParse.parse(self.startDate).year
+            if self.endDate is not None:
+                self.endYear = dateParse.parse(self.endDate).year
+            else: self.endYear = datetime.datetime.now().year
+            for yr in range(self.startYear,self.endYear+1):
+                db = os.path.join(self.projectPath,'database',str(yr),self.siteID,subsiteID)
+                os.makedirs(db,exist_ok=True)
 
 
 class databaseProject(database):
@@ -203,114 +205,3 @@ class databaseProject(database):
 #             self.variableName = self.originalName
 #         super().__post_init__()
 
-# @dataclass(kw_only=True)
-# class loggerFile(metadataRecord):
-#     loggerID: str = None
-#     fileType: str = field(default=None,repr=None)
-#     def __post_init__(self):
-#         super().__post_init__()
-
-# @dataclass(kw_only=True)
-# class siteInventory(siteRecord):
-#     def __post_init__(self):
-#         super().__post_init__()
-    #     self.load()
-    #     self.updateInventory()
-    #     self.save()
-
-    # def load(self):
-    #     si = os.path.join(self.projectPath,'metadata','siteInventory.yml')
-    #     self.siteInventory = helperFunctions.unpackDict(helperFunctions.loadDict(si),self.sepChar,self.nestDepth-1)
-    #     if os.path.isfile(os.path.join(self.projectPath,'metadata','siteInventory.csv')):
-    #         df = pd.read_csv(os.path.join(self.projectPath,'metadata','siteInventory.csv'),index_col=[0])
-    #         df = df.fillna(np.nan).replace([np.nan], [None])
-    #         for ix,row in df.iterrows():
-    #             if ix not in self.siteInventory.keys() and not pd.isna(ix):
-    #                 self.updateInventory(row.to_dict())
-    
-    # def updateInventory(self,args=None):
-    #     if args is not None:
-    #         args['projectPath'] = self.projectPath
-    #         si = siteRecord(**args)
-    #         self.nestDepth = si.nestDepth
-    #         self.record = si.record
-    #         self.ID = si.ID
-    #     if self.ID not in self.siteInventory.keys() or self.overwrite:
-    #         self.siteInventory = helperFunctions.updateDict(self.siteInventory,self.record,overwrite=self.overwrite)
-    #     if 'None' in self.siteInventory.keys() and len(self.siteInventory.keys())>1:
-    #         self.siteInventory.pop('None')
-
-    # def save(self):
-    #     # Sort alphabetically by ID, maintaining order of metadata
-    #     # Hacked up to maintain desirable sort order regardless of case or pattern used to represent "blank" values
-    #     self.siteInventory = {key.replace(self.fillChar,' '):value for key,value in self.siteInventory.items()}
-    #     self.siteInventory = {key.replace(' ',self.fillChar):value for key,value in dict(sorted(self.siteInventory.items())).items()}
-    #     self.siteInventory = helperFunctions.packDict(copy.deepcopy(self.siteInventory),self.sepChar,limit=self.nestDepth-1,order=1)
-    #     helperFunctions.saveDict(self.siteInventory,os.path.join(self.projectPath,'metadata','siteInventory.yml'))
-    #     self.siteInventory = helperFunctions.unpackDict(self.siteInventory,self.sepChar,limit=self.nestDepth-1)
-    #     index,data = [k for k in self.siteInventory.keys()],[v for v in self.siteInventory.values()]
-    #     df = pd.DataFrame(data = self.siteInventory.values(), index = index)
-    #     df.to_csv(os.path.join(self.projectPath,'metadata','siteInventory.csv'))
-
-
-
-    # def _siteInventory(self, **kwargs):
-    #     self.siteInventory = siteInventory(os.path.join(self.projectPath,'metadata','metadata'),**kwargs)
-    #     self.sourceInventory = {}
-    #     for siteID in self.siteInventory.siteInventory:
-    #         site = os.path.join(self.projectPath,'metadata','metadata',siteID)
-    #         self.sourceInventory[siteID] = os.path.join(site,'fileInventory.json')
-    #         if not os.path.isdir(site) and not siteID.startswith('.'):
-    #             os.makedirs(site)
-    #             helperFunctions.saveDict({'measurements':{},'sourceFiles':{}},self.sourceInventory[siteID])
-
-            
-    # def makeDatabase(self):
-    #     if self.verbose:print('Initializing empty database')
-    #     if not os.path.isdir(self.projectPath):
-    #         os.makedirs(self.projectPath)
-    #         if self.verbose:print('Creating: ',self.mdPath)
-    #     if not os.path.isdir(self.mdPath):
-    #         os.mkdir(self.mdPath)
-    #         if self.verbose:print('Creating: ',self.mdPath)
-    #     self.metadataFile['Date_created'] = now
-    #     self.metadataFile['Last_modified'] = now
-    #     self.logFile = 'Database Created: ' + now + '\n'
-    #     with open(self._metadataFile,'w+') as file:
-    #         if self.verbose:print('Creating: ',self._metadataFile)
-    #         yaml.safe_dump(self.metadataFile,file,sort_keys=False)
-    #     with open(self._logFile,'w+') as file:
-    #         if self.verbose:print('Creating: ',self._logFile)
-    #         file.write(self.logFile)
-
-    # def openDatabase(self):
-    #     metadata = helperFunctions.loadDict(self._metadataFile,self.verbose)
-    #     if sum(k not in metadata.keys() for k in self.metadataFile.keys()):
-    #         sys.exit('Database metadata are corrupted')
-    #     self.metadataFile = metadata
-    #     with open(self._logFile) as file:
-    #         self.logFile = file.read()
-
-# @dataclass(kw_only=True)
-# class rawDatabaseImport(database):
-#     stage = 'raw'
-#     measurementID: str
-#     dataIn: pd.DataFrame
-#     metadataIn: dict
-#     mode: Literal['fill','overwrite'] = 'fill'
-    
-#     def __post_init__(self):
-#         super().__post_init__()
-#         keep = []
-#         for trace,details in self.metadataIn['Variables'].items():
-#             print(trace,details)
-        #     if not details['ignore']: keep.append(trace)
-        # self.dataIn = self.dataIn[keep].copy()
-        # for y in self.dataIn.index.year.unique():
-        #     if '-' in self.measurementID:
-
-        #         siteID,subsiteID = self.measurementID.split('-',1)
-        #         dbpth = os.path.join(self.projectPath,str(y),siteID,self.stage,subsiteID)
-        #     else:
-        #         dbpth = os.path.join(self.projectPath,str(y),self.measurementID,self.stage)
-        #     print(dbpth)
