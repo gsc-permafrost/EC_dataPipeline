@@ -38,16 +38,16 @@ class fileInventory(ND.metadataRecord):
     excludePattern: list = field(default_factory=lambda:[],repr=False)
 
     def __post_init__(self):
-        if self.siteID == 'siteID' and self.ID is not None:
-            self.parseID()
         self.source = os.path.abspath(self.source)
         for f,v in self.__dataclass_fields__.items():
             if type(self.__dict__[f]) is not list and v.type is list:
                 self.__dict__[f] = [self.__dict__[f]]
                 
-        fI = os.path.join(self.projectPath,'metadata',self.siteID,'measurementInventory.yml')
+        # fI = os.path.join(self.projectPath,'metadata',self.siteID,'measurementInventory.yml')
         super().__post_init__()
-        # # sFI = os.path.join(self.projectPath,'metadata',self.siteID,'sourcefileInventory.json')
+        if self.siteID == 'siteID' and self.ID is not None:
+            self.parseID()
+        # sFI = os.path.join(self.projectPath,'metadata',self.siteID,'sourcefileInventory.json')
         # self.fileInventory = helperFunctions.loadDict(self.sourceInventory[self.siteID])
         # self.source = os.path.abspath(self.source)
         # self.fileInventory.setdefault(self.siteID,{}).setdefault(self.ID,{}).setdefault(self.source,[])
