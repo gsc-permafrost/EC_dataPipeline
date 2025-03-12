@@ -10,6 +10,18 @@ import subprocess
 import pandas as pd
 
 
+def baseFields(self,repr=True):
+    #repr(True,False)
+    if repr:
+        return(set(f for f,v in self.__dataclass_fields__.items() if v.repr) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr})
+    else:
+        return(set(f for f,v in self.__dataclass_fields__.items()) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items()})
+    
+        # print(type(self))
+        # for k,v in self.__dataclass_fields__.items():
+        #     print(k,v.repr)
+
+
 def sorted_nicely(l): 
     # credit: https://stackoverflow.com/a/2669120/5683778
     # sort an alphanumeric list alphabetically for text but numerically for digits

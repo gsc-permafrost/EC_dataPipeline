@@ -11,6 +11,10 @@ import helperFunctions
 import dateutil.parser as dateParse 
 from dataclasses import dataclass, field
 
+
+import importlib
+importlib.reload(helperFunctions)
+
 class _base(object):
     def __post_init__(self):
         # just intercept the __post_init__ calls so they
@@ -60,10 +64,14 @@ class database:
 @dataclass(kw_only=True)
 class metadataRecord(database):
     # Formats a metadata entry for either a full site or a specific measurement
-    siteID: str = 'siteID'
-    fileType: str = 'fileType'
-    measurementType: str = None#'fileType'
-    source: str = None
+    # siteID: str = None#'siteID'
+    # measurementType: str = None#'fileType'
+    # fileType: str = None#'fileType'
+    siteID: str = field(default=None,repr=False)
+    measurementType: str = field(default=None,repr=False)
+    positionID: int = field(default=None,repr=False)
+    fileType: str = field(default=None,repr=False)
+    source: str = field(default=None,repr=False)
     index: str = field(default=None,repr=False)
     safeName: bool = field(default=True,repr=False)
     inventory: dict = field(default=dict,repr=False)
@@ -83,9 +91,8 @@ class metadataRecord(database):
                         self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',self.fillChar, self.__dict__[k])
                     elif k.endswith('Date'):
                         self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',self.sepChar, self.__dict__[k])
-        ID = [str(self.__dict__[k]) for k in metadataRecord.__dataclass_fields__.keys() 
-                                    if self.__dataclass_fields__[k].repr and
-                                    (self.__dict__[k] is not None)]
+        ID = [str(self.__dict__[k]) if self.__dict__[k] is not None else k for k in helperFunctions.baseFields(self)]
+        print(helperFunctions.baseFields(self))
         self.nestDepth = len(ID)
         self.index = self.sepChar.join(ID)
         self.record = {}
@@ -95,6 +102,8 @@ class metadataRecord(database):
                     self.record.setdefault(self.index,{}).setdefault(f,self.__dict__[f])
                 else:
                     self.record.setdefault(f,self.__dict__[f])
+
+
         if inventoryFile is not None or self.overwrite:
             helperFunctions.updateDict(self.inventory,self.record,overwrite=self.overwrite)
             if 'siteID' in self.inventory.keys() and len(self.inventory.keys())>1:
@@ -113,8 +122,9 @@ class metadataRecord(database):
                 
 @dataclass(kw_only=True)
 class siteInventory(metadataRecord):
-    measurementType: str = field(default=None,repr=False)
-    fileType: str = field(default=None,repr=False)
+    siteID: str = None
+    # measurementType: str = field(default=None,repr=False)
+    # fileType: str = field(default=None,repr=False)
     description: str = field(default=None,repr=False)
     Name: str = field(default=None,repr=False)
     PI: str = field(default=None,repr=False)
@@ -124,12 +134,14 @@ class siteInventory(metadataRecord):
     latitude: float = field(default=None,repr=False)
     longitude: float = field(default=None,repr=False)
     def __post_init__(self):
-        if self.siteID == 'siteID' and self.index is not None:
+        # if self.siteID == 'siteID' and self.index is not None:
+        if self.siteID is None and self.index is not None:
             self.parseID()
         if self.latitude is not None and self.longitude is not None:
             coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
             self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
-        if self.siteID == 'siteID':
+        # if self.siteID == 'siteID':
+        if self.siteID is None:
             si = os.path.join(self.projectPath,'templates','siteInventory.yml')
         else:
             si = os.path.join(self.projectPath,'metadata','siteInventory.yml')
@@ -137,33 +149,40 @@ class siteInventory(metadataRecord):
 
 @dataclass(kw_only=True)
 class measurementInventory(metadataRecord):
-    siteID: str = field(default='siteID',repr=False)
+    # siteID: str = field(default='siteID',repr=False)
+    measurementType: str = None
+    positionID: int = 1
+    fileType: str = None
     description: str = field(default=None,repr=False)
     frequency: str = field(default=None,repr=False)
-    loggerID: str = field(default=None,repr=None)
+    # loggerID: str = field(default=None,repr=None)
     startDate: str = field(default=None,repr=False)
     stopDate: str = field(default=None,repr=False)
     latitude: float = field(default=None,repr=False)
     longitude: float = field(default=None,repr=False)
     def __post_init__(self):
-        if self.siteID == 'siteID' and self.index is not None:
+        # if self.siteID == 'siteID' and self.index is not None:
+        if self.siteID is None and self.index is not None:
             self.parseID()
         if self.latitude is not None and self.longitude is not None:
             coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
             self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
-        if self.index is None and self.siteID != 'siteID':
+        if self.index is None and self.siteID is not None:
             temp = siteInventory(projectPath = self.projectPath,siteID=self.siteID)
             self.latitude = temp.inventory[self.siteID]['latitude']
             self.longitude = temp.inventory[self.siteID]['longitude']
             self.startDate = temp.inventory[self.siteID]['startDate']
             self.stopDate = temp.inventory[self.siteID]['stopDate']
-        if self.siteID == 'siteID':
-            mI = os.path.join(self.projectPath,'templates',self.siteID,'measurementInventory.yml')
+        # if self.siteID == 'siteID':
+        if self.siteID is None:
+            # mI = os.path.join(self.projectPath,'templates',self.siteID,'measurementInventory.yml')
+            mI = os.path.join(self.projectPath,'templates','siteID','measurementInventory.yml')
         else:
             mI = os.path.join(self.projectPath,'metadata',self.siteID,'measurementInventory.yml')
         super().__post_init__(mI)
-        subsiteID = self.index.lstrip(self.sepChar+self.siteID)
-        if self.siteID != 'siteID' and self.measurementType != 'fileType':
+        # if self.siteID != 'siteID' and self.fileType != 'fileType':
+        if self.siteID is not None and self.fileType is not None:
+            subsiteID = self.index.lstrip(self.sepChar+self.siteID)
             os.makedirs(os.path.join(self.projectPath,'metadata',self.siteID,subsiteID),exist_ok=True)
             if self.startDate is not None:
                 self.startYear = dateParse.parse(self.startDate).year
