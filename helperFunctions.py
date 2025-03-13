@@ -10,17 +10,16 @@ import subprocess
 import pandas as pd
 
 
-def baseFields(self,repr=True):
+def baseFields(self,repr=True,ordered = True):
     #repr(True,False)
     if repr:
-        return(set(f for f,v in self.__dataclass_fields__.items() if v.repr) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr})
+        out = list(set(f for f,v in self.__dataclass_fields__.items() if v.repr) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr})
     else:
-        return(set(f for f,v in self.__dataclass_fields__.items()) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items()})
+        out = list(set(f for f,v in self.__dataclass_fields__.items()) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items()})
+    if ordered:
+        out = [k for k in self.__dataclass_fields__ if k in out]
+    return(out)
     
-        # print(type(self))
-        # for k,v in self.__dataclass_fields__.items():
-        #     print(k,v.repr)
-
 
 def sorted_nicely(l): 
     # credit: https://stackoverflow.com/a/2669120/5683778
@@ -288,32 +287,32 @@ class progressbar():
     def close(self):
         print('\n')
 
-def set_high_priority():
-    p = psutil.Process(os.getpid())
-    p.nice(psutil.HIGH_PRIORITY_CLASS)
+# def set_high_priority():
+#     p = psutil.Process(os.getpid())
+#     p.nice(psutil.HIGH_PRIORITY_CLASS)
 
-def pasteWithSubprocess(source, dest, option = 'copy',Verbose=False,pb=None):
-    set_high_priority()
-    cmd=None
-    source = os.path.abspath(source)
-    dest = os.path.abspath(dest)
-    if sys.platform.startswith("darwin"): 
-        # These need to be tested/flushed out
-        if option == 'copy' or option == 'xcopy':
-            cmd=['cp', source, dest]
-        elif option == 'move':
-            cmd=['mv',source,dest]
-    elif sys.platform.startswith("win"): 
-        cmd=[option, source, dest]
-        if option == 'xcopy':
-            cmd.append('/s')
-    if cmd:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    if pb is not None:
-        pb.step(msg=f"{source}")
+# def pasteWithSubprocess(source, dest, option = 'copy',Verbose=False,pb=None):
+#     set_high_priority()
+#     cmd=None
+#     source = os.path.abspath(source)
+#     dest = os.path.abspath(dest)
+#     if sys.platform.startswith("darwin"): 
+#         # These need to be tested/flushed out
+#         if option == 'copy' or option == 'xcopy':
+#             cmd=['cp', source, dest]
+#         elif option == 'move':
+#             cmd=['mv',source,dest]
+#     elif sys.platform.startswith("win"): 
+#         cmd=[option, source, dest]
+#         if option == 'xcopy':
+#             cmd.append('/s')
+#     if cmd:
+#         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+#     if pb is not None:
+#         pb.step(msg=f"{source}")
 
-    if Verbose==True:
-        print(proc)
+#     if Verbose==True:
+#         print(proc)
 
 if __name__ == '__main__':
     prefix = 'Test'

@@ -1,0 +1,42 @@
+Flux-1:
+  description: High frequency (20 Hz) Eddy Covariance data
+  fileType: TOBA
+  frequency: 50ms
+  latitude: 69.2264167
+  longitude: -135.2519067
+  startDate: '2024-07-20'
+  stopDate: null
+Metadata-1:
+  description: Daily Metadata Summaries
+  fileType: TOBA
+  frequency: 24h
+  latitude: 69.2264167
+  longitude: -135.2519067
+  startDate: '2024-07-20'
+  stopDate: null
+Meteorological-1:
+  description: Low Frequency Meteorological Data
+  fileType: TOBA
+  frequency: 30min
+  latitude: 69.2264167
+  longitude: -135.2519067
+  startDate: '2024-07-20'
+  stopDate: null
+Profile-1:
+  description: Soil temperature profile from a hobo data logger, in the salix sedge
+    meadow
+  fileType: HOBOcsv
+  frequency: 30min
+  latitude: 69.2264167
+  longitude: -135.2519067
+  startDate: '2024-07-20'
+  stopDate: null
+Profile-2:
+  description: Soil temperature profile from a hobo data logger, in the wet sedge
+    meadow
+  fileType: HOBOcsv
+  frequency: 30min
+  latitude: 69.2264167
+  longitude: -135.2519067
+  startDate: '2024-07-20'
+  stopDate: null
