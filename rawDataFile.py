@@ -12,30 +12,13 @@ import importlib
 importlib.reload(ND)
 importlib.reload(helperFunctions)
 
-        # print(self.inventory)
-
-        # self.measurementInventory = helperFunctions.loadDict(mI)
-        # if self.ID is None and self.measurementType is None:
-        #     sys.exit('Requires measurement type or ID')
-        # elif self.ID is None:
-        #     record = None
-        # else:
-        #     record = self.measurementInventory[self.ID]
-        # super().__post_init__()  
-
-        # # elif self.measurementType is not None:
-        # #     super().__post_init__()            
-        # helperFunctions.updateDict(self.measurementInventory,self.record,overwrite=self.overwrite)
-        # helperFunctions.saveDict(self.measurementInventory,mI)
-        # else:
-        #     self.record = {self.ID:self.measurementInventory[self.ID]}
-
 @dataclass(kw_only=True)
-class fileInventory(ND.metadataRecord):
+class fileInventory(ND.measurementInventory):
     source: str = field(repr=False)
     ext: str = field(default='',repr=False)
     matchPattern: list = field(default_factory=lambda:[],repr=False)
     excludePattern: list = field(default_factory=lambda:[],repr=False)
+    lookup: bool = field(default=True,repr=False)
 
     def __post_init__(self):
         self.source = os.path.abspath(self.source)
@@ -44,9 +27,12 @@ class fileInventory(ND.metadataRecord):
                 self.__dict__[f] = [self.__dict__[f]]
                 
         # fI = os.path.join(self.projectPath,'metadata',self.siteID,'measurementInventory.yml')
-        super().__post_init__()
-        if self.siteID == 'siteID' and self.ID is not None:
+        if self.index is not None:
             self.parseID()
+            print(self.measurementType,self.positionID)
+            print(self.index)
+        super().__post_init__()
+        print(self.index)
         # sFI = os.path.join(self.projectPath,'metadata',self.siteID,'sourcefileInventory.json')
         # self.fileInventory = helperFunctions.loadDict(self.sourceInventory[self.siteID])
         # self.source = os.path.abspath(self.source)

@@ -11,7 +11,6 @@ import pandas as pd
 
 
 def baseFields(self,repr=True,ordered = True):
-    #repr(True,False)
     if repr:
         out = list(set(f for f,v in self.__dataclass_fields__.items() if v.repr) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr})
     else:

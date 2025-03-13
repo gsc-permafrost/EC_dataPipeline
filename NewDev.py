@@ -59,14 +59,16 @@ class database:
 class metadataRecord(database):
     # Formats a metadata entry for either a full site or a specific measurement
     siteID: str = field(default=None,repr=False)
-    measurementType: str = field(default=None,repr=False)
-    positionID: int = field(default=None,repr=False)
+    # measurementType: str = field(default=None,repr=False)
+    # positionID: int = field(default=None,repr=False)
     source: str = field(default=None,repr=False)
     index: str = field(default=None,repr=False)
     safeName: bool = field(default=True,repr=False)
     inventory: dict = field(default=dict,repr=False)
     def __post_init__(self,inventoryFile=None):
         super().__post_init__()
+        self.attributes = helperFunctions.baseFields(self,repr=False)
+        self.ID = helperFunctions.baseFields(self,repr=True)
         if inventoryFile is not None:
             self.inventory = helperFunctions.loadDict(inventoryFile)
             if self.index is not None and not self.overwrite:
@@ -83,12 +85,11 @@ class metadataRecord(database):
                         self.__dict__[k] = re.sub('[^0-9a-zA-Z.]+',self.sepChar, self.__dict__[k])
         self.makeID()
         self.record = {}
-        for f,v in self.__dataclass_fields__.items():
-            if f not in metadataRecord.__dataclass_fields__.keys():
-                if self.safeName:
-                    self.record.setdefault(self.index,{}).setdefault(f,self.__dict__[f])
-                else:
-                    self.record.setdefault(f,self.__dict__[f])
+        for f in self.attributes:
+            if self.safeName:
+                self.record.setdefault(self.index,{}).setdefault(f,self.__dict__[f])
+            else:
+                self.record.setdefault(f,self.__dict__[f])
         if not self.lookup and not self.overwrite:
             while self.index in self.inventory.keys() and self.record[self.index] != self.inventory[self.index]:
                 temp = self.record.pop(self.index)
@@ -100,19 +101,19 @@ class metadataRecord(database):
             helperFunctions.saveDict(self.inventory,inventoryFile,sort_keys=True)
     
     def makeID(self):
-        ID = [str(self.__dict__[k]) if self.__dict__[k] is not None else k for k in helperFunctions.baseFields(self)]
+        ID = [str(self.__dict__[k]) if self.__dict__[k] is not None else k for k in self.ID]
         self.nestDepth = len(ID)
         self.index = self.sepChar.join(ID)
 
     def parseID(self):
         i = 0
         ID = self.index.split(self.sepChar)
-        for k in metadataRecord.__dataclass_fields__.keys():
-            if self.__dataclass_fields__[k].repr and i < len(ID):
+        for k,v in self.__dataclass_fields__.items():
+            if v.repr and i < len(ID):
                 self.__dict__[k] = ID[i]
                 i += 1
         self.index = self.__dataclass_fields__['index'].default
-                
+        
 @dataclass(kw_only=True)
 class siteInventory(metadataRecord):
     siteID: str = None
@@ -176,6 +177,24 @@ class measurementInventory(metadataRecord):
                     db = os.path.join(self.projectPath,'database',str(yr),self.siteID,subsiteID)
                     os.makedirs(db,exist_ok=True)
 
+    def fileSearch(self,source,ext,matchPattern=[],excludePattern=[]):
+        self.source = source
+        self.ext = ext
+        self.matchPattern = matchPattern
+        self.excludePattern = excludePattern
+        self.source = os.path.abspath(self.source)
+        fI = os.path.join(self.projectPath,'metadata',self.siteID,self.index,'fileInventory.yml')
+        self.fileInventory = {}
+        self.fileInventory.setdefault(self.siteID,{}).setdefault(self.index,{}).setdefault(self.source,[])
+        for dir,_,files in os.walk(self.source):
+            subDir = os.path.relpath(dir,self.source)
+            fileList = self.fileInventory[self.siteID][self.index][self.source]
+            fileList += [[os.path.join(subDir,f),False] for f in files 
+                if f.endswith(self.ext)
+                and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
+                and sum([e in f for e in self.excludePattern]) == 0
+                and [os.path.join(subDir,f),False] not in fileList
+                and [os.path.join(subDir,f),True] not in fileList]
 
 class databaseProject(database):
     def __init__(self,projectPath):
