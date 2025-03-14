@@ -64,26 +64,27 @@ class metadataRecord(database):
 
     def __post_init__(self):
         super().__post_init__()
-        if self.projectPath:
-            self.public = helperFunctions.baseFields(self,repr=True)
-            self.index = self.public[0]
-            self.__dict__[self.index] = self.safeFmt(self.__dict__[self.index])
-            self.private = helperFunctions.baseFields(self,repr=False)
-            src = os.path.join(self.projectPath,self.mapSubdir(self.subDir),type(self).__name__+'.'+self.ext)
-            print('confirm validation and filling procedures')
-            self.inventory = helperFunctions.loadDict(src)
-            for mobject in [m for m in type(self).mro() if m not in type(metadataRecord()).mro() and m.__name__ != type(self).__name__][::-1]:
-                src = os.path.join(self.projectPath,self.mapSubdir(mobject().subDir),mobject.__name__+'.'+mobject().ext)
-                for v in self.mapSubdir(self.subDir,path=False).values():
-                    tmp = helperFunctions.loadDict(src)
-                    if v in tmp.keys():
-                        for key,val in tmp[v].items():
-                            if self.__dict__[key] is None:
-                                self.__dict__[key] = val
+        if not self.projectPath:
+            return
+        self.public = helperFunctions.baseFields(self,repr=True)
+        self.index = self.public[0]
+        self.__dict__[self.index] = self.safeFmt(self.__dict__[self.index])
+        self.private = helperFunctions.baseFields(self,repr=False)
+        src = os.path.join(self.projectPath,self.mapSubdir(self.subDir),type(self).__name__+'.'+self.ext)
+        print('confirm validation and filling procedures')
+        self.inventory = helperFunctions.loadDict(src)
+        for mobject in [m for m in type(self).mro() if m not in type(metadataRecord()).mro() and m.__name__ != type(self).__name__][::-1]:
+            src = os.path.join(self.projectPath,self.mapSubdir(mobject().subDir),mobject.__name__+'.'+mobject().ext)
+            for v in self.mapSubdir(self.subDir,path=False).values():
+                tmp = helperFunctions.loadDict(src)
+                if v in tmp.keys():
+                    for key,val in tmp[v].items():
+                        if self.__dict__[key] is None:
+                            self.__dict__[key] = val
 
-            self.inventory[self.__dict__[self.index]] = {r:self.__dict__[r] for r in self.public}
-            self.validateCoordinates()
-            self.saveInventory()
+        self.inventory[self.__dict__[self.index]] = {r:self.__dict__[r] for r in self.public}
+        self.validateCoordinates()
+        self.saveInventory()
     
     def safeFmt(self,sIn):
         safeName = sIn.replace(' ',self.sepChar)
@@ -105,6 +106,7 @@ class metadataRecord(database):
             self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
     
     def saveInventory(self):
+        print('setup to save full project metadata?')
         src = os.path.join(self.projectPath,self.mapSubdir(self.subDir),type(self).__name__+'.'+self.ext)
         helperFunctions.saveDict(self.inventory,src)
 
@@ -135,10 +137,11 @@ class siteInventory(metadataRecord):
     subSites: dict = field(default_factory=lambda:{})
 
     def __post_init__(self):
-        if self.projectPath:
-            if self.subSites != {}:
-                self.subSites = self.validateSubSites()
-            super().__post_init__()
+        if not self.projectPath:
+            return
+        if self.subSites != {}:
+            self.subSites = self.validateSubSites()
+        super().__post_init__()
     
     def validateSubSites(self):
         validated = {}
@@ -156,23 +159,27 @@ class measurementInventory(siteInventory):
     subDir = ['metadata','siteID']
     measurementID: str = None
     measurementDescription: str = None
-    subsiteID: str = None
     def __post_init__(self):
-        if self.projectPath:
-            super().__post_init__()
+        if not self.projectPath:
+            return
+        super().__post_init__()
 
  
 @dataclass(kw_only=True)
 class fileInventory(measurementInventory):
     ext = 'json'
     subDir = ['metadata','siteID','measurementID']
-    qID: str = '1'
-    source: str = None
+    sourceID: str = None
+    sourcePath: str = None
+    subsiteID: str = None
     inventory: dict = field(repr=False,default=None)
     def __post_init__(self):
-        if self.projectPath:
-            super().__post_init__()
-        
+        if not self.projectPath:
+            return
+        self.sourceID = self.sepChar.join([i for i in[self.siteID,self.measurementID,self.subsiteID] if i])
+        print(self.sourceID)
+        super().__post_init__()
+
                
 
 #     # positionID: int = 1
