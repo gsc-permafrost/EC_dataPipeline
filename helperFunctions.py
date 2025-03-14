@@ -9,12 +9,22 @@ import argparse
 import subprocess
 import pandas as pd
 
+def emptyNest(seq):
+    def addVal(d,k,v):
+        d.setdefault(k,v)
+        return(d)
+    d = {}
+    for s in seq:
+        d = addVal({},s,d)
+    return(d)
 
-def baseFields(self,repr=True,ordered = True):
-    if repr:
-        out = list(set(f for f,v in self.__dataclass_fields__.items() if v.repr) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr})
-    else:
-        out = list(set(f for f,v in self.__dataclass_fields__.items()) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items()})
+def baseFields(self,repr=True,ordered = True):#,inherited = False):
+    out = list(set(f for f,v in self.__dataclass_fields__.items() if v.repr == repr) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr == repr})
+    # if inherited:
+    #     out = list(set(f for f,v in self.__dataclass_fields__.items() if v.repr == repr) - set(out))
+    # print(set(f for f,v in self.__dataclass_fields__.items()))
+    # print([t for t in type(self).mro() if hasattr(t,'__dataclass_fields__') and t.__name__ != type(self).__name__])
+    # print({f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr == repr})
     if ordered:
         out = [k for k in self.__dataclass_fields__ if k in out]
     return(out)

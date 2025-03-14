@@ -31,7 +31,6 @@ Profile_SSM:
   longitude: -135.2519067
   startDate: '2024-07-20'
   stopDate: null
-  tag: SSM
 Profile_WSM:
   description: Soil temperature profile from a hobo data logger, in the wet sedge
     meadow
@@ -41,4 +40,3 @@ Profile_WSM:
   longitude: -135.2519067
   startDate: '2024-07-20'
   stopDate: null
-  tag: WSM
