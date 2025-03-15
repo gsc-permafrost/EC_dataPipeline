@@ -1,27 +1,49 @@
-FIL:
-  Name: Fish Island
-  PI: June Skeeter
-  description: Eddy covariance station low center polygon permafrost peatland site in the Mackenzie River Delta
-  stopDate: '2017-09-13'
-  landCoverType: Peatland
+SCL:
+  siteID: SCL
+  siteDescription: Eddy covariance site in a permafrost wetland in the outer Mackenzie
+    River Delta
+  Name: Swiss Cheese Lake
+  PI: June Skeeter, Peter Morse
+  startDate: '2024-07-20'
+  stopDate: null
+  landCoverType: Sedge Wetland
   latitude: 69.3722778
   longitude: -134.8810889
-  startDate: '2017-06-21'
+  subSites:
+    SSM:
+      subsiteID: SSM
+      description: Salix sedge meadow
+      latitude: 69.3722778
+      longitude: -134.8810889
+    WSM:
+      subsiteID: WSM
+      description: Wet sedge meadow
+      latitude: 69.3722778
+      longitude: -134.8810889
 ILL:
+  siteID: ILL
   Name: Illisarvik
   PI: Chris Burn
-  description: Eddy Covariance site in an artificially drained thermokarst lake basin on Richard's Island
+  siteDescription: Eddy Covariance site in an artificially drained thermokarst lake basin on Richard's Island
   stopDate: '2016-08-07'
   landCoverType: Low Shrub/Meadow
   latitude: 69.4798611
   longitude: -34.8385278
   startDate: '2016-07-08'
-SCL:
-  Name: Swiss Cheese Lake
-  PI: June Skeeter, Peter Morse
-  description: Eddy covariance site in a permafrost wetland in the outer Mackenzie River Delta
-  stopDate: null
-  landCoverType: Sedge Wetland
-  latitude: 69.2264167
-  longitude: -135.2519067
-  startDate: '2024-07-20'
+FIL:
+  siteID: FIL
+  Name: Fish Island
+  PI: June Skeeter
+  siteDescription: Eddy covariance station low center polygon permafrost peatland site in the Mackenzie River Delta
+  stopDate: '2017-09-13'
+  landCoverType: Peatland
+  latitude: 69.3722778
+  longitude: -134.8810889
+  startDate: '2017-06-21'
+  subSites:
+    RIM:
+      subsiteID: RIM
+      description: Polygon rim
+    CNT:
+      subsiteID: CNT
+      description: Polygon centre
