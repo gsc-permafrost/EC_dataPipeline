@@ -9,14 +9,13 @@ import argparse
 import subprocess
 import pandas as pd
 
-def emptyNest(seq):
+def defaultNest(seq,seed={}):
     def addVal(d,k,v):
         d.setdefault(k,v)
         return(d)
-    d = {}
     for s in seq:
-        d = addVal({},s,d)
-    return(d)
+        seed = addVal({},s,seed)
+    return(seed)
 
 def baseFields(self,repr=True,ordered = True):#,inherited = False):
     out = list(set(f for f,v in self.__dataclass_fields__.items() if v.repr == repr) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr == repr})

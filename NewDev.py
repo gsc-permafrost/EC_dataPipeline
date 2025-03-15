@@ -55,6 +55,7 @@ class database:
 @dataclass(kw_only=True)
 class metadataRecord(database):
     index: str = None
+    subIndex: list = field(default=None)
     projectPath: str = field(default=None,repr=False)
     overwrite: bool = field(default=False,repr=False)
     verbose: bool = field(default=False,repr=False)
@@ -84,11 +85,16 @@ class metadataRecord(database):
         self.inventory = helperFunctions.loadDict(self.src)
         # get relevant attributes for the specific record
         self.public = helperFunctions.baseFields(self,repr=True)
+        rec = {r:self.__dict__[r] for r in self.public}
         self.private = helperFunctions.baseFields(self,repr=False)
-        
+        if len(self.private):
+            self.subIndex = [self.__dict__[p] for p in self.private if self.__dataclass_fields__[p].metadata == 'subID']
+            rec = helperFunctions.defaultNest(self.subIndex[::-1],rec)
         print('confirm validation and filling procedures')
 
-        self.inventory[self.index] = {r:self.__dict__[r] for r in self.public}
+        # self.inventory[self.index] = rec
+        helperFunctions.updateDict(self.inventory,{self.index:rec})
+
         self.validateCoordinates()
         self.save(True)
     
@@ -180,16 +186,18 @@ class measurementInventory(siteInventory):
 class sourcefileInventory(measurementInventory):
     ext = 'json'
     subDir = ['metadata','siteID']
-    sourcePath: str = None
-    fileExt: str = None
+    sourcePath: str = field(default=None,repr=False,metadata='subID')
+    # fileExt: str = None
+    fileExt: str = field(default=None,repr=False,metadata='subID')
     matchPattern: list = field(default_factory=lambda:[])
     excludePattern: list = field(default_factory=lambda:[])
     fileList: list = field(default_factory=lambda:[])
     lookup: bool = field(default=False,repr=False)
+    read: bool = field(default=True,repr=False)
 
     def __post_init__(self):
         if self.sourcePath:
-            self.source = os.path.abspath(self.sourcePath)
+            self.sourcePath = os.path.abspath(self.sourcePath)
         if not self.projectPath:
             return
         super().__post_init__()
@@ -205,5 +213,6 @@ class sourcefileInventory(measurementInventory):
                     and [os.path.join(subDir,f),True] not in self.fileList
                     ]
             self.save()
-
+        if self.read:
+            print(self.inventory)
                
