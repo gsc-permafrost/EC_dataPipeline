@@ -187,8 +187,8 @@ class sourcefileInventory(measurementInventory):
     ext = 'json'
     subDir = ['metadata','siteID']
     sourcePath: str = field(default=None,repr=False,metadata='subID')
-    # fileExt: str = None
-    fileExt: str = field(default=None,repr=False,metadata='subID')
+    fileExt: str = None
+    # fileExt: str = field(default=None,repr=False,metadata='subID')
     matchPattern: list = field(default_factory=lambda:[])
     excludePattern: list = field(default_factory=lambda:[])
     fileList: list = field(default_factory=lambda:[])
@@ -201,7 +201,7 @@ class sourcefileInventory(measurementInventory):
         if not self.projectPath:
             return
         super().__post_init__()
-
+        self.fileList = self.inventory[self.index][self.sourcePath]['fileList']
         if not self.lookup:
             for dir,_,files in os.walk(self.sourcePath):
                 subDir = os.path.relpath(dir,self.sourcePath)
@@ -212,7 +212,9 @@ class sourcefileInventory(measurementInventory):
                     and [os.path.join(subDir,f),False] not in self.fileList
                     and [os.path.join(subDir,f),True] not in self.fileList
                     ]
-            self.save()
-        if self.read:
+                
+            self.inventory[self.index][self.sourcePath]['fileList'] = self.fileList
+            self.save(True)
+        # if self.read:
             print(self.inventory)
                
