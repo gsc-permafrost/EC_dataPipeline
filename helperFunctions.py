@@ -19,11 +19,6 @@ def defaultNest(seq,seed={}):
 
 def baseFields(self,repr=True,ordered = True):#,inherited = False):
     out = list(set(f for f,v in self.__dataclass_fields__.items() if v.repr == repr) - {f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr == repr})
-    # if inherited:
-    #     out = list(set(f for f,v in self.__dataclass_fields__.items() if v.repr == repr) - set(out))
-    # print(set(f for f,v in self.__dataclass_fields__.items()))
-    # print([t for t in type(self).mro() if hasattr(t,'__dataclass_fields__') and t.__name__ != type(self).__name__])
-    # print({f for base in type(self).__bases__ if hasattr(base,'__dataclass_fields__') for f,v in base.__dataclass_fields__.items() if v.repr == repr})
     if ordered:
         out = [k for k in self.__dataclass_fields__ if k in out]
     return(out)
@@ -42,9 +37,12 @@ def findNestedValue(element,nest,delimiter=os.path.sep):
     keys = element.split(delimiter)
     rv = nest
     for key in keys:
-        rv = rv[key]
+        if key in rv:
+            rv = rv[key]
+        else:
+            rv = None
+            break
     return rv
-
 
 def loadDict(file,verbose=False,safemode=False):
     file = os.path.abspath(file)
@@ -133,7 +131,7 @@ def compareDicts(new_dict,old_dict,ignore_order=True,exclude_keys=[],exclude_val
     
 def unpackDict(Tree,format=os.path.sep,limit=None):
     # recursive function to condense a nested dict by concatenating keys to a string
-    def unpack(child,parent=None,root=None,format=os.path.sep,limit=None):
+    def unpack(child,parent=None,root=None,format=None,limit=None):
         pth = {}
         if type(child) is dict and (limit is None or limit >= 0) and child:
             if limit is not None:
@@ -198,24 +196,29 @@ def updateDict(base,new,overwrite=False,verbose=False):
     if base == new: return(base)
     # more comprehensive way to update items in a nested dict
     for key,value in new.items():
+        # print(key,value)
         if type(base) is dict and key not in base.keys():
+            if verbose: print('setting: ',key,' = ',base,'\n to: ',key,' = ',value)
             base[key]=value
         elif type(value) is dict and type(base[key]) is dict:
-            base[key] = updateDict(base[key],value,overwrite)
-        elif overwrite == True:
+            base[key] = updateDict(base[key],value,overwrite,verbose)
+        elif overwrite == True and base[key]!= value:
+            if verbose: print('setting: ',key,' = ',base[key],'\n to: ',key,' = ',value)
             base[key] = value
         elif overwrite == 'append' and type(base[key]) is list:
             if type(base[key][0]) is not list and type(value) is list:
                 base[key] = [base[key]]
+            if verbose: print('adding: ',value,'\n to: ',key,' = ',base[key])
             base[key].append(value)
         elif overwrite == 'append' and type(base[key]) is not list:
             base[key] = [base[key]]
+            if verbose: print('adding: ',value,'\n to: ',key,' = ',base[key])
             base[key].append(value)
-        elif base[key] is None:
+        elif base[key] is None and value is not None:
+            if verbose: print('setting: ',key,' = ',base[key],'\n to: ',key,' = ',value)
             base[key] = value
-        elif overwrite:
-            print(f'overwrite = {overwrite} will not update matching keys: ',base[key],value)
-            # sys.exit('updateDict exception:  fix update exception!')
+        elif base[key] != value:
+            if verbose: print(f'overwrite = {overwrite} will not update matching keys: ',base[key],value)
     return(base) 
 
 def lists2DataFrame(**kwargs):

@@ -17,7 +17,7 @@ importlib.reload(helperFunctions)
 class database:
     # Base class containing common functionality across the database
     fillChar = '_'
-    sepChar = '-'
+    sepChar = '/'*2
     projectPath = os.getcwd()
     verbose = False
     metadataFile = helperFunctions.loadDict(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml'))
@@ -33,7 +33,6 @@ class database:
                 sys.exit('Non-empty, non-project directory provided')
             else:
                 self.metadataFile = helperFunctions.loadDict(os.path.join(self.projectPath,'projectInfo.yml'))
-                print('Add Validation?')
                 self.save()
     
     def make(self):
@@ -50,12 +49,40 @@ class database:
         self.metadataFile['dateModified'] = self.now()
         helperFunctions.saveDict(self.metadataFile,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
         if inventory:
+            if type(self).__name__ != 'siteInventory':
+                self.inventory = helperFunctions.packDict(helperFunctions.unpackDict(self.inventory,format=self.sepChar),limit=1,format=self.sepChar)
+                
+                keys = list(self.inventory.keys())
+                dropKeys = [k1 for k1 in keys if any([k2.startswith(k1) for k2 in keys if k2 != k1])]
+                for d in dropKeys:
+                    self.inventory.pop(d)
+                self.inventory = helperFunctions.packDict(self.inventory,format=self.sepChar)
+                print(self.inventory)
+                # for i,k in enumerate(keys[:-1]):
+                #     if keys[i+1].startswith(k)
             helperFunctions.saveDict(self.inventory,self.src)
+        
+    def validate(self):
+        if self.verbose: print(f'Validating metadta in: ',self.projectPath)
+        for key,values in helperFunctions.loadDict(os.path.join(self.projectPath,'metadata','siteInventory.yml')).items():
+            siteInventory(projectPath=self.projectPath,overwrite=True,verbose=self.verbose,**values)
+            mI = helperFunctions.loadDict(os.path.join(self.projectPath,'metadata',values['siteID'],'measurementInventory.yml'))
+            mI = helperFunctions.packDict(helperFunctions.unpackDict(mI,format=self.sepChar),limit=1,format=self.sepChar)
+            sI = helperFunctions.loadDict(os.path.join(self.projectPath,'metadata',values['siteID'],'searchInventory.yml'))
+            for ke,vals in mI.items():
+                measurementInventory(projectPath=self.projectPath,overwrite=True,verbose=self.verbose,siteID=values['siteID'],**vals)
+                s = helperFunctions.findNestedValue(ke,sI,delimiter=self.sepChar)
+                if s:
+                    s = helperFunctions.packDict(helperFunctions.unpackDict(s,format=self.sepChar),limit=1,format=self.sepChar)
+                    kl = sorted(list(s.keys()))
+                    for k,v in s.items():
+                        v = vals|v
+                        s = searchInventory(projectPath=self.projectPath,overwrite=True,verbose=self.verbose,siteID=values['siteID'],**v)
 
 @dataclass(kw_only=True)
 class metadataRecord(database):
     index: str = None
-    subIndex: list = field(default=None)
+    subIndex: list = None
     projectPath: str = field(default=None,repr=False)
     overwrite: bool = field(default=False,repr=False)
     verbose: bool = field(default=False,repr=False)
@@ -66,15 +93,17 @@ class metadataRecord(database):
             return
         # Define the index for new records 
         if not self.index:
-            self.index=self.sepChar.join([self.safeFmt(k) for k,v in self.__dataclass_fields__.items() if v.metadata == 'ID' and self.__dict__[k]])
-        
-        # lookup the parents attributes
+            self.index=(self.sepChar).join([self.safeFmt(k) for k,v in self.__dataclass_fields__.items() if v.metadata == 'ID' and self.__dict__[k]])
+
+        self.validateCoordinates()
+        # load the parent elements
         parents = [p for p in type(self).mro() if p not in type(metadataRecord()).mro() and p.__name__ != type(self).__name__]
         for parent in parents:
             src = os.path.join(self.projectPath,self.mapSubdir(parent().subDir),parent.__name__+'.'+parent().ext)
             tmp = helperFunctions.loadDict(src)
-            if self.index and self.index in tmp.keys():
-                self.load(tmp[self.index])
+            tmpIx = self.sepChar.join([self.safeFmt(k) for k,v in parent().__dataclass_fields__.items() if v.metadata == 'ID' and self.__dict__[k]])
+            if tmpIx:
+                self.load(helperFunctions.findNestedValue(tmpIx,tmp,self.sepChar))
             else:
                 for v in self.mapSubdir(self.subDir,path=False).values():
                     if v in tmp.keys():
@@ -83,33 +112,32 @@ class metadataRecord(database):
         # load the inventory for the child
         self.src = os.path.join(self.projectPath,self.mapSubdir(self.subDir),type(self).__name__+'.'+self.ext)
         self.inventory = helperFunctions.loadDict(self.src)
-        # get relevant attributes for the specific record
+
+        # get relevant "user-facing" attributes for the specific record
         self.public = helperFunctions.baseFields(self,repr=True)
         rec = {r:self.__dict__[r] for r in self.public}
-        self.private = helperFunctions.baseFields(self,repr=False)
-        if len(self.private):
-            self.subIndex = [self.__dict__[p] for p in self.private if self.__dataclass_fields__[p].metadata == 'subID']
-            rec = helperFunctions.defaultNest(self.subIndex[::-1],rec)
-        print('confirm validation and filling procedures')
+        helperFunctions.updateDict(self.inventory,helperFunctions.defaultNest(self.index.split(self.sepChar)[::-1],rec),self.overwrite,self.verbose)
 
-        # self.inventory[self.index] = rec
-        helperFunctions.updateDict(self.inventory,{self.index:rec})
-
-        self.validateCoordinates()
         self.save(True)
     
-    def load(self,tmp):
-        for key,val in tmp.items():
-            if self.__dict__[key] is None and not self.overwrite:
-                self.__dict__[key] = val
+    def load(self,tmp=None):
+        if tmp:
+            for key,val in tmp.items():
+                if self.__dict__[key] is None and not self.overwrite:
+                    self.__dict__[key] = val
 
     def safeFmt(self,k):
-        safeName = self.__dict__[k].replace(' ',self.sepChar)
-        safeName = re.sub('[^0-9a-zA-Z_]+',self.fillChar, safeName)
-        if self.__dict__[k] != safeName:
-            if self.verbose:print('Unsafe name: ',self.__dict__[k],' \nConverting to: ',safeName)
-            self.__dict__[k] = safeName
-        return(self.__dict__[k])
+        if type(self.__dict__[k]) != list and not k.endswith('Path'):
+            safeName = re.sub('[^0-9a-zA-Z_]+',self.fillChar, str(self.__dict__[k]))
+            if self.__dict__[k] != safeName:
+                if self.verbose:print('Unsafe name: ',self.__dict__[k],' \nConverting to: ',safeName)
+                self.__dict__[k] = safeName
+            return(self.__dict__[k])
+        elif type(self.__dict__[k]) == list:
+            return(self.fillChar.join([j for j in self.__dict__[k]]))            
+        else:
+            return(self.__dict__[k])
+
 
     def mapSubdir(self,items,path=True):
         if path:
@@ -181,40 +209,64 @@ class measurementInventory(siteInventory):
             return
         super().__post_init__()
 
- 
 @dataclass(kw_only=True)
-class sourcefileInventory(measurementInventory):
-    ext = 'json'
+class searchInventory(measurementInventory):
+    ext = 'yml'
     subDir = ['metadata','siteID']
-    sourcePath: str = field(default=None,repr=False,metadata='subID')
-    fileExt: str = None
-    # fileExt: str = field(default=None,repr=False,metadata='subID')
-    matchPattern: list = field(default_factory=lambda:[])
-    excludePattern: list = field(default_factory=lambda:[])
-    fileList: list = field(default_factory=lambda:[])
-    lookup: bool = field(default=False,repr=False)
-    read: bool = field(default=True,repr=False)
+    sourcePath: str = field(default=None,metadata='ID')
+    fileExt: str = field(default=None,metadata='ID')
+    matchPattern: list = field(default_factory=lambda:[],metadata='ID')
+    excludePattern: list = field(default_factory=lambda:[],metadata='ID')
 
     def __post_init__(self):
-        if self.sourcePath:
-            self.sourcePath = os.path.abspath(self.sourcePath)
         if not self.projectPath:
             return
+        if self.sourcePath:
+            self.sourcePath = os.path.abspath(self.sourcePath)
+        for f,v in self.__dataclass_fields__.items():
+            if type(self.__dict__[f]) is not list and v.type is list:
+                self.__dict__[f] = [self.__dict__[f]]
         super().__post_init__()
-        self.fileList = self.inventory[self.index][self.sourcePath]['fileList']
-        if not self.lookup:
-            for dir,_,files in os.walk(self.sourcePath):
-                subDir = os.path.relpath(dir,self.sourcePath)
-                self.fileList += [[os.path.join(subDir,f),False] for f in files 
-                    if f.endswith(self.fileExt)
-                    and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
-                    and sum([e in f for e in self.excludePattern]) == 0
-                    and [os.path.join(subDir,f),False] not in self.fileList
-                    and [os.path.join(subDir,f),True] not in self.fileList
-                    ]
+        
+# @dataclass(kw_only=True)
+# class sourcefileInventory(measurementInventory):
+#     ext = 'yml'
+#     subDir = ['metadata','siteID']
+#     sourcePath: str = field(default=None,repr=False,metadata='subID')
+#     fileExt: str = field(default=None,repr=False,metadata='subID')
+#     matchPattern: tuple = field(default_factory=lambda:(),repr=False,metadata='subID')
+#     excludePattern: tuple = field(default_factory=lambda:(),repr=False,metadata='subID')
+#     fileList: list = field(default_factory=lambda:[])
+#     lookup: bool = field(default=False,repr=False)
+#     read: bool = field(default=True,repr=False)
+
+#     def __post_init__(self):
+#         if not self.projectPath:
+#             return
+#         if self.sourcePath:
+#             self.sourcePath = os.path.abspath(self.sourcePath)
+#         for f,v in self.__dataclass_fields__.items():
+#             if type(self.__dict__[f]) is not tuple and v.type is tuple:
+#                 if type(self.__dict__[f]) is list:
+#                     self.__dict__[f] = tuple(self.__dict__[f])
+#                 else:
+#                     self.__dict__[f] = tuple([self.__dict__[f]])
+#         super().__post_init__()
+
+
+        # self.fileList = self.inventory[self.index][self.sourcePath]['fileList']
+        # if not self.lookup:
+        #     for dir,_,files in os.walk(self.sourcePath):
+        #         subDir = os.path.relpath(dir,self.sourcePath)
+        #         self.fileList += [[os.path.join(subDir,f),False] for f in files 
+        #             if f.endswith(self.fileExt)
+        #             and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
+        #             and sum([e in f for e in self.excludePattern]) == 0
+        #             and [os.path.join(subDir,f),False] not in self.fileList
+        #             and [os.path.join(subDir,f),True] not in self.fileList
+        #             ]
                 
-            self.inventory[self.index][self.sourcePath]['fileList'] = self.fileList
-            self.save(True)
-        # if self.read:
-            print(self.inventory)
+        #     self.inventory[self.index][self.sourcePath]['fileList'] = self.fileList
+        #     self.save(True)
+        # # if self.read:
                

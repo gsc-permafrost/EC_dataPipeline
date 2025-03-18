@@ -28,7 +28,8 @@ ILL:
   stopDate: '2016-08-07'
   landCoverType: Low Shrub/Meadow
   latitude: 69.4798611
-  longitude: -34.8385278
+  longitude: 'W 134 50.8385278'
+  # longitude: -134.8385278
   startDate: '2016-07-08'
 FIL:
   siteID: FIL
