@@ -24,10 +24,10 @@ class UTM:
         self.x = round(self.x,self.UTM_sig)
         self.y = round(self.y,self.UTM_sig)
         
-@pydantic_dataclass
+@dataclass
 class GCS:
-    x: float
-    y: float
+    x: float = None
+    y: float = None
     datum: Literal['WGS84','NAD83'] = 'WGS84'
     EPSG: str = None
 
@@ -49,6 +49,7 @@ class coordinates:
 
     def __post_init__(self):
         if self.latitude is None or self.longitude is None:
+            self.GCS = GCS(datum=self.datum,x=self.longitude,y=self.latitude).__dict__
             return()
         self.latitude,latDDM,latDMS = self.getDD(str(self.latitude),'NS')
         self.longitude,lonDDM,lonDMS = self.getDD(str(self.longitude),'EW')

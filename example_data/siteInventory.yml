@@ -1,30 +1,35 @@
 SCL:
   siteID: SCL
-  siteDescription: Eddy covariance site in a permafrost wetland in the outer Mackenzie
+  description: Eddy covariance site in a permafrost wetland in the outer Mackenzie
     River Delta
   Name: Swiss Cheese Lake
   PI: June Skeeter, Peter Morse
   startDate: '2024-07-20'
   stopDate: null
   landCoverType: Sedge Wetland
-  latitude: 69.3722778
-  longitude: -134.8810889
-  subSites:
+  latitude: 'N69 12.5880'
+  longitude: 'W135 15.1144'
+  samplePoints:
+    EC:
+      pointID: EC
+      description: Eddy covariance station
+      latitude: 'N69 12.5880'
+      longitude: 'W135 15.1144'
     SSM:
-      subsiteID: SSM
-      description: Salix sedge meadow
-      latitude: 69.3722778
-      longitude: -134.8810889
+      pointID: SSM
+      description: HOBO logger in salix sedge meadow
+      latitude: 'N69 13.5239'
+      longitude: 'W135 15.1358'
     WSM:
-      subsiteID: WSM
+      pointID: WSM
       description: Wet sedge meadow
-      latitude: 69.3722778
-      longitude: -134.8810889
+      latitude: 'N69 13.5521'
+      longitude: 'W135 15.1359'
 ILL:
   siteID: ILL
   Name: Illisarvik
   PI: Chris Burn
-  siteDescription: Eddy Covariance site in an artificially drained thermokarst lake basin on Richard's Island
+  description: Eddy Covariance site in an artificially drained thermokarst lake basin on Richard's Island
   stopDate: '2016-08-07'
   landCoverType: Low Shrub/Meadow
   latitude: 69.4798611
@@ -35,16 +40,16 @@ FIL:
   siteID: FIL
   Name: Fish Island
   PI: June Skeeter
-  siteDescription: Eddy covariance station low center polygon permafrost peatland site in the Mackenzie River Delta
+  description: Eddy covariance station low center polygon permafrost peatland site in the Mackenzie River Delta
   stopDate: '2017-09-13'
   landCoverType: Peatland
   latitude: 69.3722778
   longitude: -134.8810889
   startDate: '2017-06-21'
-  subSites:
+  samplePoints:
     RIM:
-      subsiteID: RIM
+      pointID: RIM
       description: Polygon rim
     CNT:
-      subsiteID: CNT
+      pointID: CNT
       description: Polygon centre

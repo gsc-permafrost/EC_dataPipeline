@@ -23,6 +23,8 @@ def baseFields(self,repr=True,ordered = True):#,inherited = False):
         out = [k for k in self.__dataclass_fields__ if k in out]
     return(out)
     
+def safeFmt(string,safeChars='[^0-9a-zA-Z]+',fillChar='_'):
+    return(re.sub(safeChars,fillChar, str(string)))
 
 def sorted_nicely(l): 
     # credit: https://stackoverflow.com/a/2669120/5683778

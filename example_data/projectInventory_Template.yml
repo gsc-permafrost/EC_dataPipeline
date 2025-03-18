@@ -1,0 +1,36 @@
+SCL:
+  siteID: SCL
+  description: Eddy covariance site in a permafrost wetland in the outer Mackenzie
+    River Delta
+  Name: Swiss Cheese Lake
+  PI: June Skeeter, Peter Morse
+  startDate: 2024-07-20
+  stopDate: null
+  landCoverType: Sedge Wetland
+  latitude: 69.2098
+  longitude: -135.2519067
+  Measurments:
+    Flux:
+      measurementID: Flux
+      sampleFrequency: 50ms
+      description: High frequency (20 Hz) Eddy Covariance data
+      latitude: 69.2098
+      longitude: -135.2519067
+      startDate: 2024-07-20
+      stopDate: null
+    SSM_Profile:
+      measurementID: SSM_Profile
+      sampleFrequency: 30m
+      description: HOBO logger in salix sedge meadow
+      latitude: 69.2253983
+      longitude: -135.2522633
+      startDate: 2024-07-20
+      stopDate: null
+    WSM_Profile:
+      measurementID: WSM_Profile
+      sampleFrequency: 30m
+      description: HOBO logger in wet sedge meadow
+      latitude: 69.2258683
+      longitude: -135.252265
+      startDate: 2024-07-20
+      stopDate: null

@@ -90,6 +90,7 @@ class metadataRecord(database):
         # load the parent elements
         parents = [p for p in type(self).mro() if p not in type(metadataRecord()).mro() and p.__name__ != type(self).__name__]
         for parent in parents:
+            print('chou Pi')
             src = os.path.join(self.projectPath,self.mapSubdir(parent().subDir),parent.__name__+'.'+parent().ext)
             tmp = helperFunctions.loadDict(src)
             tmpIx = self.sepChar.join([self.safeFmt(k) for k,v in parent().__dataclass_fields__.items() if v.metadata == 'ID' and self.__dict__[k]])
@@ -99,18 +100,16 @@ class metadataRecord(database):
                 for v in self.mapSubdir(self.subDir,path=False).values():
                     if v in tmp.keys():
                         self.load(tmp[v])
-    
         # load the inventory for the child
         src = os.path.join(self.projectPath,self.mapSubdir(self.subDir),type(self).__name__+'.'+self.ext)
         self.inventory = helperFunctions.loadDict(src)
 
+    
         # get relevant "user-facing" attributes for the specific record
         self.public = helperFunctions.baseFields(self,repr=True)
         rec = {r:self.__dict__[r] for r in self.public}
         helperFunctions.updateDict(self.inventory,helperFunctions.defaultNest(self.index.split(self.sepChar)[::-1],rec),self.overwrite,self.verbose)
-        
-        self.save(self.inventory,type(self).__name__+'.'+self.ext)
-    
+
     def load(self,tmp=None):
         if tmp:
             for key,val in tmp.items():
@@ -138,27 +137,32 @@ class metadataRecord(database):
     def validateCoordinates(self):
         if self.latitude is not None and self.longitude is not None:
             coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
+            # print(coordinates)
             self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
 
-    def popSubsets(self):
+    def popSubsets(self,fn):
         self.inventory = helperFunctions.unpackDict(self.inventory,self.sepChar,limit=len(self.index.split(self.sepChar))-1)
+        print(self.index)
         keys = list(self.inventory[self.index].keys())
+        print(keys)
         for key in keys:
             if type(self.inventory[self.index][key]) is dict:
-                v = self.inventory[self.index].pop(key)
-                subDir = os.path.sep.join(self.index.split(self.sepChar))
-                fn = os.path.join(self.projectPath,'metadata',self.siteID,subDir,'test.json')
-                print(fn)
-
-        # print(helperFunctions.findNestedValue(self.index,self.inventory,self.sepChar))
-        # print(self.inventory[self.index])
+                subSet = self.inventory[self.index].pop(key)
+                fn = os.path.join(self.projectPath,self.mapSubdir(self.subDir),os.path.sep.join(self.index.split(self.sepChar)),fn)
+                self.save(subSet,fn)
 
 @dataclass(kw_only=True)
-class subSite(metadataRecord):
-    subsiteID: str = None
+class test:
+    A: int = 1
+
+@dataclass(kw_only=True)
+class samplePoint(metadataRecord):
+    pointID: str = None
     description: str = None
     latitude: float = None
     longitude: float = None
+    measurements: dict = field(default_factory=lambda:test().__dict__)
+    fileName: str = field(default='samplePoints.yml',repr=False)
 
     def __post_init__(self):
         self.validateCoordinates()
@@ -169,7 +173,7 @@ class siteInventory(metadataRecord):
     ext = 'yml'
     subDir = ['metadata']
     siteID: str = field(default=None,metadata='ID')
-    siteDescription: str = None
+    description: str = None
     Name: str = None
     PI: str = None
     startDate: str = None
@@ -177,26 +181,26 @@ class siteInventory(metadataRecord):
     landCoverType: str = None
     latitude: float = None
     longitude: float = None
-    subSites: dict = field(default_factory=lambda:{'None':subSite(subsiteID='None').record})
+    samplePoints: dict = field(default_factory=lambda:{'None':samplePoint(pointID='None').record})
 
-    def __post_init__(self):
+    def __post_init__(self,main=True):
         if not self.projectPath:
             return
-        if self.subSites:
-            self.subSites = self.validateSubSites()
+        self.samplePoints = self.validatesamplePoints()
         super().__post_init__()
-        self.popSubsets()
+        if main:
+            self.popSubsets(samplePoint().fileName)
+            self.save(self.inventory,type(self).__name__+'.'+self.ext)
     
-    def validateSubSites(self):
+    def validatesamplePoints(self):
         validated = {}
-        if 'subsiteID' in self.subSites:
-            tmp = subSite(**self.subSites)
-            validated[tmp.subsiteID] = tmp.record
+        if 'pointID' in self.samplePoints:
+            tmp = samplePoint(**self.samplePoints)
+            validated[tmp.pointID] = tmp.record
         else:
-            for k,v in self.subSites.items():
-                tmp = subSite(**v)
-                validated[tmp.subsiteID] = tmp.record
-            
+            for k,v in self.samplePoints.items():
+                tmp = samplePoint(**v)
+                validated[tmp.pointID] = tmp.record
         return(validated)
     
 @dataclass(kw_only=True)
@@ -206,6 +210,7 @@ class sourceInventory(metadataRecord):
     fileExt: str = None
     matchPattern: list = field(default_factory=lambda:[])
     excludePattern: list = field(default_factory=lambda:[])
+    fileName: str = field(default='sourceFileList.json',repr=False)
 
     def __post_init__(self):
         if not self.sourceID:
@@ -220,18 +225,22 @@ class measurementInventory(siteInventory):
     ext = 'yml'
     subDir = ['metadata','siteID']
     siteID: str = None
+    pointID: str = field(default=None,metadata='ID')
     measurementID: str = field(default=None,metadata='ID')
-    subsiteID: str = field(default=None,metadata='ID')
     fileType: str = field(default=None,metadata='ID')
     baseFrequency: str = None
-    measurementDescription: str = None
-    sourceInventory: str = field(default_factory=lambda:lambda:{'None':subSite(sourceInventory='None').record})
+    description: str = None
+    sourceInventory: str = field(default_factory=lambda:lambda:{'None':samplePoint(sourceInventory='None').record})
 
-    def __post_init__(self):
+    def __post_init__(self,main=True):
+        print('Mi')
         if not self.projectPath:
             return
         self.sourceInventory = self.validateSources()
-        super().__post_init__()
+        super().__post_init__(main=False)
+        if main:
+            self.popSubsets(sourceInventory().fileName)
+            self.save(self.inventory,type(self).__name__+'.'+self.ext)
     
     def validateSources(self):
         validated = {}
@@ -262,6 +271,7 @@ class measurementInventory(siteInventory):
         #         and [os.path.join(subDir,f),True] not in fileList
         #         ]
         # self.save(self.inventory,filename)  
+
 @dataclass(kw_only=True)
 class searchInventory(measurementInventory):
     ext = 'yml'
