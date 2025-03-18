@@ -45,22 +45,13 @@ class database:
     def now(self,fmt='%Y-%m-%d %H:%M:%S'):
         return(datetime.datetime.now().strftime(fmt))
     
-    def save(self,inventory=False):
+    def save(self,inventory=None,filename=None):
+
         self.metadataFile['dateModified'] = self.now()
         helperFunctions.saveDict(self.metadataFile,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
-        if inventory:
-            if type(self).__name__ != 'siteInventory':
-                self.inventory = helperFunctions.packDict(helperFunctions.unpackDict(self.inventory,format=self.sepChar),limit=1,format=self.sepChar)
-                
-                keys = list(self.inventory.keys())
-                dropKeys = [k1 for k1 in keys if any([k2.startswith(k1) for k2 in keys if k2 != k1])]
-                for d in dropKeys:
-                    self.inventory.pop(d)
-                self.inventory = helperFunctions.packDict(self.inventory,format=self.sepChar)
-                print(self.inventory)
-                # for i,k in enumerate(keys[:-1]):
-                #     if keys[i+1].startswith(k)
-            helperFunctions.saveDict(self.inventory,self.src)
+        if filename:
+            print('Saving: ',filename)
+            helperFunctions.saveDict(inventory,os.path.join(self.projectPath,self.mapSubdir(self.subDir),filename))
         
     def validate(self):
         if self.verbose: print(f'Validating metadta in: ',self.projectPath)
@@ -81,8 +72,8 @@ class database:
 
 @dataclass(kw_only=True)
 class metadataRecord(database):
-    index: str = None
-    subIndex: list = None
+    index: str = field(default=None,repr=False)
+    subIndex: list = field(default=None,repr=False)
     projectPath: str = field(default=None,repr=False)
     overwrite: bool = field(default=False,repr=False)
     verbose: bool = field(default=False,repr=False)
@@ -110,15 +101,15 @@ class metadataRecord(database):
                         self.load(tmp[v])
     
         # load the inventory for the child
-        self.src = os.path.join(self.projectPath,self.mapSubdir(self.subDir),type(self).__name__+'.'+self.ext)
-        self.inventory = helperFunctions.loadDict(self.src)
+        src = os.path.join(self.projectPath,self.mapSubdir(self.subDir),type(self).__name__+'.'+self.ext)
+        self.inventory = helperFunctions.loadDict(src)
 
         # get relevant "user-facing" attributes for the specific record
         self.public = helperFunctions.baseFields(self,repr=True)
         rec = {r:self.__dict__[r] for r in self.public}
         helperFunctions.updateDict(self.inventory,helperFunctions.defaultNest(self.index.split(self.sepChar)[::-1],rec),self.overwrite,self.verbose)
-
-        self.save(True)
+        
+        self.save(self.inventory,type(self).__name__+'.'+self.ext)
     
     def load(self,tmp=None):
         if tmp:
@@ -138,7 +129,6 @@ class metadataRecord(database):
         else:
             return(self.__dict__[k])
 
-
     def mapSubdir(self,items,path=True):
         if path:
             return(os.path.sep.join([self.__dict__[s] if s in self.__dict__.keys() else s for s in items]))
@@ -149,6 +139,19 @@ class metadataRecord(database):
         if self.latitude is not None and self.longitude is not None:
             coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
             self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
+
+    def popSubsets(self):
+        self.inventory = helperFunctions.unpackDict(self.inventory,self.sepChar,limit=len(self.index.split(self.sepChar))-1)
+        keys = list(self.inventory[self.index].keys())
+        for key in keys:
+            if type(self.inventory[self.index][key]) is dict:
+                v = self.inventory[self.index].pop(key)
+                subDir = os.path.sep.join(self.index.split(self.sepChar))
+                fn = os.path.join(self.projectPath,'metadata',self.siteID,subDir,'test.json')
+                print(fn)
+
+        # print(helperFunctions.findNestedValue(self.index,self.inventory,self.sepChar))
+        # print(self.inventory[self.index])
 
 @dataclass(kw_only=True)
 class subSite(metadataRecord):
@@ -174,7 +177,7 @@ class siteInventory(metadataRecord):
     landCoverType: str = None
     latitude: float = None
     longitude: float = None
-    subSites: dict = None#field(default_factory=lambda:{})
+    subSites: dict = field(default_factory=lambda:{'None':subSite(subsiteID='None').record})
 
     def __post_init__(self):
         if not self.projectPath:
@@ -182,17 +185,36 @@ class siteInventory(metadataRecord):
         if self.subSites:
             self.subSites = self.validateSubSites()
         super().__post_init__()
+        self.popSubsets()
     
     def validateSubSites(self):
         validated = {}
-        for k,v in self.subSites.items():
-            if 'subsiteID' not in v.keys():
-                v['subsiteID'] = k
-            tmp = subSite(**v)
+        if 'subsiteID' in self.subSites:
+            tmp = subSite(**self.subSites)
             validated[tmp.subsiteID] = tmp.record
+        else:
+            for k,v in self.subSites.items():
+                tmp = subSite(**v)
+                validated[tmp.subsiteID] = tmp.record
+            
         return(validated)
     
+@dataclass(kw_only=True)
+class sourceInventory(metadataRecord):
+    sourceID: int = None
+    sourcePath: str = None
+    fileExt: str = None
+    matchPattern: list = field(default_factory=lambda:[])
+    excludePattern: list = field(default_factory=lambda:[])
 
+    def __post_init__(self):
+        if not self.sourceID:
+            self.sourceID = self.now()
+        for f,v in self.__dataclass_fields__.items():
+            if type(self.__dict__[f]) is not list and v.type is list:
+                self.__dict__[f] = [self.__dict__[f]]
+        self.record = {k:v for k,v in self.__dict__.items() if self.__dataclass_fields__[k].repr}
+        
 @dataclass(kw_only=True)
 class measurementInventory(siteInventory):
     ext = 'yml'
@@ -203,12 +225,43 @@ class measurementInventory(siteInventory):
     fileType: str = field(default=None,metadata='ID')
     baseFrequency: str = None
     measurementDescription: str = None
+    sourceInventory: str = field(default_factory=lambda:lambda:{'None':subSite(sourceInventory='None').record})
 
     def __post_init__(self):
         if not self.projectPath:
             return
+        self.sourceInventory = self.validateSources()
         super().__post_init__()
+    
+    def validateSources(self):
+        validated = {}
+        if 'sourcePath' in self.sourceInventory:
+            tmp = sourceInventory(**self.sourceInventory)
+            validated[tmp.sourceID] = tmp.record
+        else:
+            for k,v in self.sourceInventory.items():
+                tmp = sourceInventory(**v)
+                validated[tmp.sourceID] = tmp.record
+        self.findNewSourceFiles()
+        return(validated)
 
+    def findNewSourceFiles(self):
+        print('doSomething')
+        # filename = 'sourceFiles.json'
+        # self.sourceFiles = helperFunctions.loadDict(os.path.join(self.projectPath,'metadata',self.siteID,filename))
+        # if not helperFunctions.findNestedValue(self.index,self.sourceFiles,self.sepChar):
+        #     self.sourceFiles = helperFunctions.defaultNest(self.index.split(self.sepChar)[::-1],seed = [[]])
+        # fileList = helperFunctions.findNestedValue(self.index,self.sourceFiles,self.sepChar)
+        # for dir,_,files in os.walk(self.sourcePath):
+        #     subDir = os.path.relpath(dir,self.sourcePath)
+        #     fileList += [[os.path.join(subDir,f),False] for f in files 
+        #         if f.endswith(self.fileExt)
+        #         and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
+        #         and sum([e in f for e in self.excludePattern]) == 0
+        #         and [os.path.join(subDir,f),False] not in fileList
+        #         and [os.path.join(subDir,f),True] not in fileList
+        #         ]
+        # self.save(self.inventory,filename)  
 @dataclass(kw_only=True)
 class searchInventory(measurementInventory):
     ext = 'yml'
@@ -227,6 +280,27 @@ class searchInventory(measurementInventory):
             if type(self.__dict__[f]) is not list and v.type is list:
                 self.__dict__[f] = [self.__dict__[f]]
         super().__post_init__()
+
+    def findNewSourceFiles(self):
+        filename = 'sourceFiles.json'
+        self.sourceFiles = helperFunctions.loadDict(os.path.join(self.projectPath,'metadata',self.siteID,filename))
+        if not helperFunctions.findNestedValue(self.index,self.sourceFiles,self.sepChar):
+            self.sourceFiles = helperFunctions.defaultNest(self.index.split(self.sepChar)[::-1],seed = [[]])
+        fileList = helperFunctions.findNestedValue(self.index,self.sourceFiles,self.sepChar)
+        for dir,_,files in os.walk(self.sourcePath):
+            subDir = os.path.relpath(dir,self.sourcePath)
+            fileList += [[os.path.join(subDir,f),False] for f in files 
+                if f.endswith(self.fileExt)
+                and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
+                and sum([e in f for e in self.excludePattern]) == 0
+                and [os.path.join(subDir,f),False] not in fileList
+                and [os.path.join(subDir,f),True] not in fileList
+                ]
+        self.save(self.inventory,filename)
+
+
+        # print(self.sourceFiles)
+        # print()
         
 # @dataclass(kw_only=True)
 # class sourcefileInventory(measurementInventory):
@@ -267,6 +341,6 @@ class searchInventory(measurementInventory):
         #             ]
                 
         #     self.inventory[self.index][self.sourcePath]['fileList'] = self.fileList
-        #     self.save(True)
+        #     self.save(self.inventory,type(self).__name__+'.'+self.ext)
         # # if self.read:
                

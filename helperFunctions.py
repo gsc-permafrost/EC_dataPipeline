@@ -144,6 +144,7 @@ def unpackDict(Tree,format=os.path.sep,limit=None):
                 if type(value) is not dict or (limit is not None and limit < 0) or not value:
                     pth[key] = unpack(value,key,root,format,limit)
                 else:
+                    # print(value,key,root,format,limit)
                     pth = pth | unpack(value,key,root,format,limit)
         else:
             if type(child) is not dict or (limit is not None and limit < 0) or not child:
