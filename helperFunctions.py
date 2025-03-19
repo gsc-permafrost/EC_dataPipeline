@@ -8,6 +8,17 @@ import deepdiff
 import argparse
 import subprocess
 import pandas as pd
+from inspect import currentframe, getframeinfo
+
+def log(msg=None,ln=True):
+    if type(msg) == list or type(msg) == tuple:
+        msg = ' '.join([m for m in msg])
+    if ln:
+        cf = currentframe()
+        print(f"line {cf.f_back.f_lineno}: {msg}")
+    else:
+        print(msg)
+
 
 def defaultNest(seq,seed={}):
     def addVal(d,k,v):

@@ -8,7 +8,7 @@ import importlib
 importlib.reload(siteCoordinates)
 importlib.reload(helper)
 
-@dataclass
+@dataclass(kw_only=True)
 class database:
     # Base class containing common functionality across the database
     projectPath: str = None
@@ -26,7 +26,6 @@ class database:
                 sys.exit('Non-empty, non-project directory provided')
             else:
                 self.projectInfo = helper.loadDict(os.path.join(self.projectPath,'projectInfo.yml'))
-                self.save()
                             
     def now(self,fmt='%Y-%m-%d %H:%M:%S'):
         return(datetime.datetime.now().strftime(fmt))
@@ -39,14 +38,17 @@ class database:
         self.save()
         
     def save(self,inventory=None,filename=None):
+        if self.projectPath:
+            self.projectInfo['dateModified'] = self.now()
+            helper.saveDict(self.projectInfo,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
+            if filename:
+                helper.log(('Saving: ',filename))
+                helper.saveDict(inventory,os.path.join(self.projectPath,'metadata',filename))
+        elif filename:
+            helper.log(('Saving: ',filename))
+            helper.saveDict(inventory,filename)
 
-        self.projectInfo['dateModified'] = self.now()
-        helper.saveDict(self.projectInfo,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
-        if filename:
-            print('Saving: ',filename)
-            helper.saveDict(inventory,os.path.join(self.projectPath,'metadata',filename))
-
-@dataclass
+@dataclass(kw_only=True)
 class Measurment:
     measurementID: str = 'measurementID'
     sampleFrequency: str = None
@@ -61,7 +63,7 @@ class Measurment:
         coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
         self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
 
-@dataclass
+@dataclass(kw_only=True)
 class Site:
     siteID: str = 'siteID'
     description: str = None
@@ -84,16 +86,15 @@ class Site:
             self.Measurments = {Measurment(**self.Measurments).measurementID:Measurment(**self.Measurments).__dict__}
             
 
-@dataclass
+@dataclass(kw_only=True)
 class inventory(database):
     Sites: Site = field(default_factory=lambda:Site().__dict__)
     fpath: str = 'projectInventory.yml'
 
     def __post_init__(self):
-        print(os.path.isfile(self.fpath))
         if os.path.isfile(self.fpath):
             self.Sites = helper.loadDict(self.fpath)
-            self.fpath = self.__dataclass_fields__['fpath'].default
+        self.fpath = self.__dataclass_fields__['fpath'].default
         super().__post_init__()
         self.fpath = os.path.join(self.projectPath,'metadata',self.fpath)
         if self.Sites == Site().__dict__ and os.path.isfile(self.fpath):
@@ -104,10 +105,11 @@ class inventory(database):
             self.Sites = {Site(**self.Sites).siteID:Site(**self.Sites).__dict__}
         for siteID in self.Sites:
             for measurementID in self.Sites[siteID]['Measurments']:
-                src = sourceFiles(siteID,measurementID,root=os.path.join(self.projectPath,'metadata'))
-        # self.save(self.Sites,self.fpath)
+                src = sourceFiles(siteID=siteID,measurementID=measurementID,root=os.path.join(self.projectPath,'metadata'))
+        self.save(self.Sites,self.fpath)
 
-@dataclass
+
+@dataclass(kw_only=True)
 class fileInvnentory:
     sourceID: str = 'sourceID'
     fileType: str = None
@@ -129,7 +131,7 @@ class fileInvnentory:
                 and [os.path.join(subDir,f),True] not in self.fileList
                 ]
         
-@dataclass
+@dataclass(kw_only=True)
 class fileSearch:
     sourceID: str = 'sourceID'
     fileType: str = None
@@ -148,7 +150,7 @@ class fileSearch:
             self.sourcePath = os.path.abspath(self.sourcePath)
         pass
 
-@dataclass
+@dataclass(kw_only=True)
 class sourceFiles(database):
     siteID: str = 'siteID'
     measurementID: str = 'measurementID'
@@ -174,5 +176,6 @@ class sourceFiles(database):
             if k not in self.inventory:
                 self.inventory[k] = []
         self.inventory = {k:fileInvnentory(fileList=self.inventory[k],**v).fileList for k,v in self.search.items() if v['sourcePath']}
+        # helper.log(self.sourceInventory)
         self.save(self.inventory,self.sourceInventory)
 
