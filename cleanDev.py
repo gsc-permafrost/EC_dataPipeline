@@ -20,7 +20,6 @@ class database:
     verbose: bool = False
     projectInfo: dict = field(default_factory=lambda:helper.loadDict(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml')))
     
-
     def __post_init__(self):
         if self.projectPath:
             if not os.path.isdir(self.projectPath) or len(os.listdir(self.projectPath)) == 0:
@@ -42,14 +41,15 @@ class database:
             self.projectInfo['dateModified'] = helper.now()
             helper.saveDict(self.projectInfo,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
             if filename:
-                helper.log(('Saving: ',filename),ln=False,verbose=self.verbose)
+                log(('Saving: ',filename),ln=False,verbose=self.verbose)
                 helper.saveDict(inventory,os.path.join(self.projectPath,'metadata',filename))
+                
         elif filename:
-            helper.log(('Saving: ',filename),ln=False,verbose=self.verbose)
+            log(('Saving: ',filename),ln=False,verbose=self.verbose)
             helper.saveDict(inventory,filename)
 
 @dataclass(kw_only=True)
-class Measurment:
+class Measurement:
     measurementID: str = None
     fileType: str = None
     sampleFrequency: str = None
@@ -82,7 +82,7 @@ class Site:
     landCoverType: str = None
     latitude: float = None
     longitude: float = None
-    Measurments: Measurment = field(default_factory=lambda:Measurment(template=True).__dict__)
+    Measurements: Measurement = field(default_factory=lambda:Measurement(template=True).__dict__)
     template: bool = field(default=False,repr=False)
     
     def __post_init__(self):
@@ -94,9 +94,9 @@ class Site:
             self.siteID = helper.safeFmt(self.siteID)
             coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
             self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
-            if type(list(self.Measurments.values())[0]) is not dict:
-                self.Measurments = {'':self.Measurments}
-            self.Measurments = helper.dictToDataclass(Measurment,self.Measurments,'measurmentID')
+            if type(list(self.Measurements.values())[0]) is not dict:
+                self.Measurements = {'':self.Measurements}
+            self.Measurements = helper.dictToDataclass(Measurement,self.Measurements,'measurementID')
 
 @dataclass
 class Search:
@@ -115,7 +115,6 @@ class Search:
             for k,v in self.__dataclass_fields__.items():
                 if v.repr and self.__dict__[k] is None:
                     self.__dict__[k] = v.name
-                self.fileList = ['someFile',False]
         elif self.sourcePath and os.path.isdir(self.sourcePath):
             self.sourcePath = os.path.abspath(self.sourcePath)
             self.fileSearch()
@@ -144,17 +143,29 @@ class searchInventory:
     searchInventory: Search = field(default_factory=lambda:Search(template=True).__dict__)
 
     def __post_init__(self):
-        if not self.template and self.projectPath is not None and os.path.isdir(self.projectPath):
-            log(self.template)
-            log(self.projectPath)
-            self.process()
-        else:
+        if self.projectPath is None or not os.path.isdir(self.projectPath):
+            return
+        sI = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,'searchInventory.yml')
+        sF = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,'sourceFiles.json')
+        if self.template and not os.path.isfile(sI):
             for k,v in self.__dataclass_fields__.items():
                 if v.repr and self.__dict__[k] is None:
                     self.__dict__[k] = v.name
-    def process(self):
-        sI = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,'searchInventory.yml')
-        sF = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,'sourceFiles.json')
+        else:
+            self.rmID = self.__dataclass_fields__['searchInventory'].default_factory()['ID']
+            self.process(sF,sI)
+        self.sourceFiles = {}
+        for ID in self.searchInventory.keys():
+            self.sourceFiles[ID]={
+                'fileList':self.searchInventory[ID].pop('fileList'),
+                'loadList':self.searchInventory[ID].pop('loadList')}
+        if len(list(self.searchInventory.keys()))>1:
+            self.searchInventory.pop(self.rmID)
+            self.sourceFiles.pop(self.rmID)
+        helper.saveDict(self.searchInventory,sI)
+        helper.saveDict(self.sourceFiles,sF)
+
+    def process(self,sF,sI):
         if os.path.isfile(sI):
             searchInventory = helper.loadDict(sI)
             sourceFiles = helper.loadDict(sF)
@@ -164,11 +175,11 @@ class searchInventory:
             searchInventory = helper.dictToDataclass(Search,searchInventory,['ID'],pop=True)
         else:
             searchInventory = None
-        if searchInventory is None or self.searchInventory != self.__dataclass_fields__['searchInventory'].default:
+        if searchInventory is None or self.searchInventory != self.__dataclass_fields__['searchInventory'].default_factory():
             if type(self.searchInventory) is str and os.path.isfile(self.searchInventory):
                 self.searchInventory = helper.loadDict(self.searchInventory)
             elif type(self.searchInventory) is not dict:
-                helper.log(msg='input must be dict or filepath')
+                log(msg='input must be dict or filepath')
             self.searchInventory = helper.dictToDataclass(Search,self.searchInventory,['ID'],pop=True)
             if searchInventory:
                 for key,values in searchInventory.items():
@@ -178,18 +189,12 @@ class searchInventory:
                         if not comp:
                             self.searchInventory.pop(k)
                         else:
+                            # log(self.searchInventory[k])
                             log(comp)
-                log(searchInventory,'\n\n',self.searchInventory)
-                self.searchInventory = helper.updateDict(searchInventory,self.searchInventory,verbose=True)
+
+                self.searchInventory = helper.updateDict(searchInventory,self.searchInventory)#,verbose=True)
         else:
             self.searchInventory = searchInventory
-        self.sourceFiles = {}
-        for ID in self.searchInventory.keys():
-            self.sourceFiles[ID]={
-                'fileList':self.searchInventory[ID].pop('fileList'),
-                'loadList':self.searchInventory[ID].pop('loadList')}
-        helper.saveDict(self.searchInventory,sI)
-        helper.saveDict(self.sourceFiles,sF)
         
 
 @dataclass(kw_only=True)
@@ -205,27 +210,14 @@ class projectInventory(database):
         elif os.path.isfile(self.fpath) and self.Sites == self.__dataclass_fields__['Sites'].default:
             self.Sites = helper.loadDict(self.fpath)
         self.Sites = helper.dictToDataclass(Site,self.Sites,'siteID')
-        
-        if self.fileSearch != self.__dataclass_fields__['fileSearch'].default_factory:
-            log(self.fileSearch)
-            log(helper.dictToDataclass(searchInventory,self.fileSearch,constants={'projectPath':self.projectPath}))
+        for siteID in self.Sites:
+            for measurementID in self.Sites[siteID]['Measurements']:
+                if siteID in self.fileSearch and measurementID in self.fileSearch[siteID]:
+                    log(self.fileSearch[siteID][measurementID])
+                    helper.dictToDataclass(searchInventory,self.fileSearch[siteID][measurementID],constants={'projectPath':self.projectPath,'siteID':siteID,'measurementID':measurementID},pad=True)
+                else:
+                    helper.dictToDataclass(searchInventory,searchInventory(template=True).__dict__,constants={'projectPath':self.projectPath,'siteID':siteID,'measurementID':measurementID},pad=True)
         self.save(self.Sites,self.fpath)
-
-
-    # def dumpToDc(self,method,toDump,ID=None):
-    #     if ID is None:
-    #         tmp = method(**toDump)
-    #     else:
-    #         if type(list(toDump.values())[0]) is not dict:
-    #             toDump = {'':toDump}
-    #         tmp = {}
-    #         for value in toDump.values():
-    #             t = method(**value)
-    #             log(t)
-    #             tmp[t.__dict__[ID]] = helper.reprToDict(t)
-    #     return(tmp)
-        # elif os.path.isfile(self.fpath) and self.Sites == self.__dataclass_fields__['Sites'].default:
-        #     self.Sites = helper.loadDict(self.fpath)
 
 
 

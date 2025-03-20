@@ -11,38 +11,35 @@ import subprocess
 import pandas as pd
 from inspect import currentframe, getframeinfo
 
-def dictToDataclass(method,toDump,ID=None,pop=False,constants={}):
-    if type(list(toDump.values())[0]) is not dict:
+def dictToDataclass(method,toDump,ID=None,pop=False,constants={},pad=False):
+    if type(ID) is str:
+        ID = [ID]
+    if type(list(toDump.values())[0]) is not dict or pad:
         toDump = {'':toDump}
-    tmp = {}
+    out = {}
     for value in toDump.values():
         for k,v in constants.items():
             value[k] = v
 
         value = {k:v for k,v in value.items() if k in method.__dataclass_fields__}
-        if ID is None:
-            log(value)
         t = method(**value)
         if ID is None:
-            log(t)
             tmp = reprToDict(t)
         else:
-            if type(ID) is str:
-                ID = [ID]
             r = reprToDict(t)
             if pop:
-                ID = [r.pop(id) for id in ID]
-            tmp = defaultNest([id for id in ID],r)
-    return(tmp)
+                tmp = defaultNest([r.pop(id) for id in ID],r)
+            else:
+                tmp = defaultNest([r[id] for id in ID],r)
+        updateDict(out,tmp)
+    return(out)
 
 def now(fmt='%Y-%m-%dT%H:%M:%S.%f',prefix='',suffix=''):
     return(f"{prefix}{datetime.datetime.now().strftime(fmt)}{suffix}")
 
 def reprToDict(dc):
     # given a dataclass, dummp itemes where repr=true to a dictionary
-    log(dc.__dict__)
-    log(dc.__dataclass_fields__)
-    return({k:v for k,v in dc.__dict__.items() if dc.__dataclass_fields__[k].repr})
+    return({k:v for k,v in dc.__dict__.items() if k in dc.__dataclass_fields__ and dc.__dataclass_fields__[k].repr})
 
 def log(msg='',ln=True,fn=True,verbose=True):
     if verbose:
@@ -175,8 +172,15 @@ def compareDicts(new_dict,old_dict,ignore_order=True,exclude_keys=[],exclude_val
                 keyNest = item.replace("root['",'').rstrip("']").replace("']['",'~')
                 logItem[keyNest] = findNestedValue(keyNest,old_dict,delimiter='~')
             dDict[key] = packDict(logItem,format='~')
+        elif key == 'iterable_item_added':
+            logItem = {}
+            for item in diff:
+                keyNest = item.replace("root['",'').rstrip("']").replace("']['",'~')
+                logItem[keyNest] = findNestedValue(keyNest,new_dict,delimiter='~')
+            dDict[key] = packDict(logItem,format='~')
         else:
-            sys.exit(f'New for dict compare: {key}')
+            log(f'New for dict compare: {key}')
+            sys.exit()
     return(dDict)
     
 def unpackDict(Tree,format=os.path.sep,limit=None):
@@ -247,27 +251,27 @@ def updateDict(base,new,overwrite=False,verbose=False):
     # more comprehensive way to update items in a nested dict
     for key,value in new.items():
         if type(base) is dict and key not in base.keys():
-            if verbose: print('setting: ',key,' = ',base,'\n to: ',key,' = ',value)
+            if verbose: log('setting: ',key,' = ',base,'\n to: ',key,' = ',value)
             base[key]=value
         elif type(value) is dict and type(base[key]) is dict:
             base[key] = updateDict(base[key],value,overwrite,verbose)
         elif overwrite == True and base[key]!= value:
-            if verbose: print('setting: ',key,' = ',base[key],'\n to: ',key,' = ',value)
+            if verbose: log('setting: ',key,' = ',base[key],'\n to: ',key,' = ',value)
             base[key] = value
         elif overwrite == 'append' and type(base[key]) is list:
             if type(base[key][0]) is not list and type(value) is list:
                 base[key] = [base[key]]
-            if verbose: print('adding: ',value,'\n to: ',key,' = ',base[key])
+            if verbose: log('adding: ',value,'\n to: ',key,' = ',base[key])
             base[key].append(value)
         elif overwrite == 'append' and type(base[key]) is not list:
             base[key] = [base[key]]
-            if verbose: print('adding: ',value,'\n to: ',key,' = ',base[key])
+            if verbose: log('adding: ',value,'\n to: ',key,' = ',base[key])
             base[key].append(value)
         elif base[key] is None and value is not None:
-            if verbose: print('setting: ',key,' = ',base[key],'\n to: ',key,' = ',value)
+            if verbose: log('setting: ',key,' = ',base[key],'\n to: ',key,' = ',value)
             base[key] = value
         elif base[key] != value:
-            if verbose: print(f'overwrite = {overwrite} will not update matching keys: ',base[key],value)
+            if verbose: log(f'overwrite = {overwrite} will not update matching keys: ',base[key],value)
     return(base) 
 
 def lists2DataFrame(**kwargs):

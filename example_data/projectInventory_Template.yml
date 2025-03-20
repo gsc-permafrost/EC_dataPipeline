@@ -9,7 +9,7 @@ SCL:
   landCoverType: Sedge Wetland
   latitude: 69.2098
   longitude: -135.2519067
-  Measurments:
+  Measurements:
     Flux:
       measurementID: Flux
       fileType: TOBA
