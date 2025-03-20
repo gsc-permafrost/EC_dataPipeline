@@ -4,20 +4,42 @@ import sys
 import yaml
 import json
 import psutil
+import datetime
 import deepdiff
 import argparse
 import subprocess
 import pandas as pd
 from inspect import currentframe, getframeinfo
 
-def log(msg=None,ln=True):
-    if type(msg) == list or type(msg) == tuple:
-        msg = ' '.join([m for m in msg])
-    if ln:
-        cf = currentframe()
-        print(f"line {cf.f_back.f_lineno}: {msg}")
-    else:
-        print(msg)
+def dictToDataclass(method,toDump,ID=None):
+        if type(list(toDump.values())[0]) is not dict:
+            toDump = {'':toDump}
+        tmp = {}
+        for value in toDump.values():
+            value = {k:v for k,v in value.items() if k in method.__dataclass_fields__}
+            t = method(**value)
+            if ID is None:
+                tmp = reprToDict(t)
+            else:
+                tmp[t.__dict__[ID]] = reprToDict(t)
+        return(tmp)
+
+def now(fmt='%Y-%m-%dT%H:%M:%S.%f',prefix='',suffix=''):
+    return(f"{prefix}{datetime.datetime.now().strftime(fmt)}{suffix}")
+
+def reprToDict(dc):
+    # given a dataclass, dummp itemes where repr=true to a dictionary
+    return({k:v for k,v in dc.__dict__.items() if dc.__dataclass_fields__[k].repr})
+
+def log(msg='',ln=True,verbose=True):
+    if verbose:
+        if type(msg) == list or type(msg) == tuple:
+            msg = ' '.join([m for m in msg])
+        if ln:
+            cf = currentframe()
+            print(f"line {cf.f_back.f_lineno}: {msg}")
+        else:
+            print(msg)
 
 
 def defaultNest(seq,seed={}):

@@ -12,35 +12,6 @@ import importlib
 importlib.reload(ND)
 importlib.reload(helperFunctions)
 
-@dataclass(kw_only=True)
-class fileInventory(ND.metadataRecord):
-    source: str = None
-    ext: str = field(default='',repr=False)
-    matchPattern: list = field(default_factory=lambda:[],repr=False)
-    excludePattern: list = field(default_factory=lambda:[],repr=False)
-    fileList: list = field(default_factory=lambda:[],repr=False)
-
-    def __post_init__(self):
-        self.source = os.path.abspath(self.source)
-        for f,v in self.__dataclass_fields__.items():
-            if type(self.__dict__[f]) is not list and v.type is list:
-                self.__dict__[f] = [self.__dict__[f]]
-                
-        fI = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,'fileInventory.json')
-        
-        super().__post_init__(inventoryFile=fI)
-        if not self.lookup:
-            for dir,_,files in os.walk(self.source):
-                subDir = os.path.relpath(dir,self.source)
-                self.fileList += [[os.path.join(subDir,f),False] for f in files 
-                    if f.endswith(self.ext)
-                    and sum([m in f for m in self.matchPattern]) == len(self.matchPattern)
-                    and sum([e in f for e in self.excludePattern]) == 0
-                    and [os.path.join(subDir,f),False] not in self.fileList
-                    and [os.path.join(subDir,f),True] not in self.fileList
-                    ]
-        self.saveInventory(fI)
-
         # helperFunctions.saveDict(self.fileInventory,self.sourceInventory[self.siteID])
 
 # @dataclass(kw_only=True)
