@@ -100,8 +100,6 @@ class Site:
                 Measurments[measurment.measurementID] = helper.reprToDict(measurment)
             self.Measurments = Measurments
 
-   
-
 @dataclass
 class SourceFiles:
     fname = 'sourceFiles.json'
@@ -113,18 +111,21 @@ class SourceFiles:
     excludePattern: list = field(default=None,repr=False)
     template: bool = field(default=False,repr=False)
     fileList: list = field(default_factory=lambda:[])
+    loadList: list = field(default_factory=lambda:[])
 
     def __post_init__(self):
         if self.sourcePath is not None and os.path.isdir(self.sourcePath) and self.fileExt:
             for dir,_,files in os.walk(self.sourcePath):
                 subDir = os.path.relpath(dir,self.sourcePath)
-                self.fileList += [[os.path.join(subDir,f),False] for f in files 
+                tmp1 = [os.path.join(subDir,f) for f in files 
                     if f.endswith(self.fileExt)
                     and sum([m in os.path.join(subDir,f) for m in self.matchPattern]) == len(self.matchPattern)
                     and sum([e in os.path.join(subDir,f) for e in self.excludePattern]) == 0
-                    and [os.path.join(subDir,f),False] not in self.fileList
-                    and [os.path.join(subDir,f),True] not in self.fileList
+                    and os.path.join(subDir,f) not in self.fileList
                     ]
+                tmp2 = [False for l in range(len(tmp1))]
+                self.fileList += tmp1
+                self.loadList += tmp2
 
 @dataclass
 class Search:
@@ -135,6 +136,11 @@ class Search:
     fileExt: str = None
     matchPattern: list = field(default_factory=lambda:[])
     excludePattern: list = field(default_factory=lambda:[])
+    nFiles: int = 0
+    nLoaded: int = 0
+    nPending: int = 0
+    fileList: list = field(default_factory=lambda:[],repr=False)
+    loadList: list = field(default_factory=lambda:[],repr=False)
     template: bool = field(default=False,repr=False)
 
     def __post_init__(self):
@@ -147,6 +153,11 @@ class Search:
                 self.fileList = ['someFile',False]
         elif self.sourcePath and os.path.isdir(self.sourcePath):
             self.sourcePath = os.path.abspath(self.sourcePath)
+
+        self.nFiles = len(self.fileList)
+        self.nLoaded = sum(self.loadList)
+        self.nPending = self.nFiles-self.nLoaded
+        print(self.__repr__())
 
 @dataclass
 class searchInventory:
@@ -179,16 +190,18 @@ class searchInventory:
         else:
             self.searchInventory = searchInventory
     
-        sF = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,SourceFiles.fname)
-        self.sourceFiles = helper.loadDict(sF)
-        for uID,kwargs in self.searchInventory.items():
-            if uID in self.sourceFiles:
-                kwargs['fileList'] = self.sourceFiles[uID]['fileList']
-            self.sourceFiles = helper.updateDict(self.sourceFiles,helper.dictToDataclass(SourceFiles,kwargs,'uID'))
-            if 'fileList' in kwargs:
-                kwargs.pop('fileList')
-        helper.saveDict(self.searchInventory,sI)
-        helper.saveDict(self.sourceFiles,sF)
+        # sF = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,SourceFiles.fname)
+        # self.sourceFiles = helper.loadDict(sF)
+        # for uID,kwargs in self.searchInventory.items():
+        #     if uID in self.sourceFiles:
+        #         kwargs['fileList'] = self.sourceFiles[uID]['fileList']
+        #     self.sourceFiles = helper.updateDict(self.sourceFiles,helper.dictToDataclass(SourceFiles,kwargs,'uID'))
+        #     for uID,fileList in self.sourceFiles.items():
+        #         print(fileList)
+        #     if 'fileList' in kwargs:
+        #         kwargs.pop('fileList')
+        # helper.saveDict(self.searchInventory,sI)
+        # helper.saveDict(self.sourceFiles,sF)
         
 
 @dataclass(kw_only=True)

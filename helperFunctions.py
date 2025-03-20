@@ -12,17 +12,17 @@ import pandas as pd
 from inspect import currentframe, getframeinfo
 
 def dictToDataclass(method,toDump,ID=None):
-        if type(list(toDump.values())[0]) is not dict:
-            toDump = {'':toDump}
-        tmp = {}
-        for value in toDump.values():
-            value = {k:v for k,v in value.items() if k in method.__dataclass_fields__}
-            t = method(**value)
-            if ID is None:
-                tmp = reprToDict(t)
-            else:
-                tmp[t.__dict__[ID]] = reprToDict(t)
-        return(tmp)
+    if type(list(toDump.values())[0]) is not dict:
+        toDump = {'':toDump}
+    tmp = {}
+    for value in toDump.values():
+        value = {k:v for k,v in value.items() if k in method.__dataclass_fields__}
+        t = method(**value)
+        if ID is None:
+            tmp = reprToDict(t)
+        else:
+            tmp[t.__dict__[ID]] = reprToDict(t)
+    return(tmp)
 
 def now(fmt='%Y-%m-%dT%H:%M:%S.%f',prefix='',suffix=''):
     return(f"{prefix}{datetime.datetime.now().strftime(fmt)}{suffix}")
