@@ -12,6 +12,7 @@ SCL:
   Measurments:
     Flux:
       measurementID: Flux
+      fileType: TOBA
       sampleFrequency: 50ms
       description: High frequency (20 Hz) Eddy Covariance data
       latitude: 69.2098
@@ -20,6 +21,7 @@ SCL:
       stopDate: null
     SSM_Profile:
       measurementID: SSM_Profile
+      fileType: HOBOcsv
       sampleFrequency: 30m
       description: HOBO logger in salix sedge meadow
       latitude: 69.2253983
@@ -28,6 +30,7 @@ SCL:
       stopDate: null
     WSM_Profile:
       measurementID: WSM_Profile
+      fileType: HOBOcsv
       sampleFrequency: 30m
       description: HOBO logger in wet sedge meadow
       latitude: 69.2258683

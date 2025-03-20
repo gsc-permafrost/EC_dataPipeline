@@ -11,17 +11,28 @@ import subprocess
 import pandas as pd
 from inspect import currentframe, getframeinfo
 
-def dictToDataclass(method,toDump,ID=None):
+def dictToDataclass(method,toDump,ID=None,pop=False,constants={}):
     if type(list(toDump.values())[0]) is not dict:
         toDump = {'':toDump}
     tmp = {}
     for value in toDump.values():
+        for k,v in constants.items():
+            value[k] = v
+
         value = {k:v for k,v in value.items() if k in method.__dataclass_fields__}
+        if ID is None:
+            log(value)
         t = method(**value)
         if ID is None:
+            log(t)
             tmp = reprToDict(t)
         else:
-            tmp[t.__dict__[ID]] = reprToDict(t)
+            if type(ID) is str:
+                ID = [ID]
+            r = reprToDict(t)
+            if pop:
+                ID = [r.pop(id) for id in ID]
+            tmp = defaultNest([id for id in ID],r)
     return(tmp)
 
 def now(fmt='%Y-%m-%dT%H:%M:%S.%f',prefix='',suffix=''):
@@ -29,24 +40,28 @@ def now(fmt='%Y-%m-%dT%H:%M:%S.%f',prefix='',suffix=''):
 
 def reprToDict(dc):
     # given a dataclass, dummp itemes where repr=true to a dictionary
+    log(dc.__dict__)
+    log(dc.__dataclass_fields__)
     return({k:v for k,v in dc.__dict__.items() if dc.__dataclass_fields__[k].repr})
 
-def log(msg='',ln=True,verbose=True):
+def log(msg='',ln=True,fn=True,verbose=True):
     if verbose:
         if type(msg) == list or type(msg) == tuple:
             msg = ' '.join([m for m in msg])
         if ln:
             cf = currentframe()
-            print(f"line {cf.f_back.f_lineno}: {msg}")
-        else:
-            print(msg)
+            msg = f"line {cf.f_back.f_lineno}:\n{msg}\n"
+            if fn:
+                cf.f_back.f_code.co_filename
+                msg = f"{cf.f_back.f_code.co_filename} "+ msg
+        print(msg)
 
 
 def defaultNest(seq,seed={}):
     def addVal(d,k,v):
         d.setdefault(k,v)
         return(d)
-    for s in seq:
+    for s in seq[::-1]:
         seed = addVal({},s,seed)
     return(seed)
 
@@ -179,7 +194,6 @@ def unpackDict(Tree,format=os.path.sep,limit=None):
                 if type(value) is not dict or (limit is not None and limit < 0) or not value:
                     pth[key] = unpack(value,key,root,format,limit)
                 else:
-                    # print(value,key,root,format,limit)
                     pth = pth | unpack(value,key,root,format,limit)
         else:
             if type(child) is not dict or (limit is not None and limit < 0) or not child:
@@ -232,7 +246,6 @@ def updateDict(base,new,overwrite=False,verbose=False):
     if base == new: return(base)
     # more comprehensive way to update items in a nested dict
     for key,value in new.items():
-        # print(key,value)
         if type(base) is dict and key not in base.keys():
             if verbose: print('setting: ',key,' = ',base,'\n to: ',key,' = ',value)
             base[key]=value
