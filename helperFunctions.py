@@ -11,7 +11,7 @@ import subprocess
 import pandas as pd
 from inspect import currentframe, getframeinfo
 
-def dictToDataclass(method,toDump,ID=None,pop=False,constants={},pad=False):
+def dictToDataclass(method,toDump,ID=None,pop=False,constants={},pad=False,debug=False):
     if type(ID) is str:
         ID = [ID]
     if type(list(toDump.values())[0]) is not dict or pad:
@@ -20,8 +20,9 @@ def dictToDataclass(method,toDump,ID=None,pop=False,constants={},pad=False):
     for value in toDump.values():
         for k,v in constants.items():
             value[k] = v
-
         value = {k:v for k,v in value.items() if k in method.__dataclass_fields__}
+        # if debug:
+        #     log(value)
         t = method(**value)
         if ID is None:
             tmp = reprToDict(t)
