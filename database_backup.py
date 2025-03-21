@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from dataclasses import dataclass,field
 
-from rawDataFile import genericLoggerFile
+from rawDataFile_bu2 import genericLoggerFile
 
 
 def load():

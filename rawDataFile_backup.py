@@ -25,7 +25,7 @@ class observation:
         self.ignore = not np.issubdtype(self.dtype,np.number)
         self.dtype = self.dtype.str
         
-@dataclass
+@dataclass(kw_only=True)
 class genericLoggerFile:
     # Important attributes to be associated with a generic logger file
     verbose: bool = True
@@ -67,11 +67,11 @@ class genericLoggerFile:
             newNames.append(obs.safe_name)
         self.Data.columns = newNames
 
-@dataclass
+@dataclass(kw_only=True)
 class hoboCSV(genericLoggerFile):
+    sourcePath: str
     verbose: bool = True
     fileType: str = "HoboCSV"
-    sourcePath: str = None
     timestamp: str = "Date Time"
     varRepMap: dict = field(default_factory=dict)
     yearfirst: bool = True

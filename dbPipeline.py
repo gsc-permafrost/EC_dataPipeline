@@ -54,7 +54,6 @@ class database:
     def projectInventory(self,Sites={},fileSearch=None):
         fpath = os.path.join(self.projectPath,'metadata',Site.fname)
         if os.path.isfile(fpath):
-            log(helper.loadDict(fpath))
             self.siteInventory = helper.dictToDataclass(Site,helper.loadDict(fpath),'siteID',constants={'projectPath':self.projectPath})
         else:
             self.siteInventory = {}
@@ -64,8 +63,42 @@ class database:
             Sites = helper.dictToDataclass(Site,Sites,'siteID',constants={'projectPath':self.projectPath})
         self.siteInventory = helper.updateDict(self.siteInventory,Sites)
         if self.siteInventory == {}:
-            self.siteInventory = helper.dictToDataclass(Site,Site().__dict__,'siteID',constants={'projectPath':self.projectPath})
+            self.siteInventory = helper.dictToDataclass(Site,Site().__dict__,ID=['siteID'],constants={'projectPath':self.projectPath,'template':True},debug=True)
         self.save(self.siteInventory,fpath)
+        for siteID,values in self.siteInventory.items():
+            self.save(values,os.path.join(self.projectPath,'metadata',siteID,f"{siteID}_metadata.yml"))
+
+    def rawFileSearch(self,siteID,measurementID,sourcePath=None,wildcard=None):
+        sF = os.path.join(self.projectPath,'metadata',siteID,measurementID,Search.fname)
+        if not os.path.isfile(sF):
+            log(f"Does not exist: {sF}")
+            sys.exit()
+        else:
+            sourceFiles = helper.loadDict(sF)
+            if sourcePath and wildcard and os.path.isdir(sourcePath):
+                helper.updateDict(sourceFiles,helper.dictToDataclass(Search,{'sourcePath':sourcePath,'wildcard':wildcard},'ID',pop=True))
+            else:
+                sourceFiles = helper.dictToDataclass(Search,sourceFiles,'ID',pop=True)
+        if len(sourceFiles)>1 and Search(template=True).ID in sourceFiles:
+            sourceFiles.pop(Search(template=True).ID)
+        self.save(sourceFiles,sF)
+
+    def rawFileImport(self,siteID,measurementID,sourcePath=None,wildcard=None):
+        sF = os.path.join(self.projectPath,'metadata',siteID,measurementID,Search.fname)
+        if not os.path.isfile(sF):
+            log(f"Does not exist: {sF}")
+            sys.exit()
+        else:
+            sourceFiles = helper.loadDict(sF)
+            for key,value in sourceFiles.items():
+                if value['nPending']>0:
+                    load = [value['fileList'][i] for i,v in enumerate(value['loadList']) if not v]
+                    load = load[:2]
+                    value['loadList'] = [True if f in load else False for f in value['fileList']]
+                sourceFiles[key]=value
+        self.save(sourceFiles,sF)
+
+
 
 @dataclass(kw_only=True)
 class Measurement:
@@ -151,6 +184,8 @@ class Site:
     def __post_init__(self):
         if self.template:
             for k,v in self.__dataclass_fields__.items():
+                if k == 'Name':
+                    self.__dict__[k] = 'This is a template for future sites'
                 if v.repr and self.__dict__[k] is None:
                     self.__dict__[k] = v.name
         if self.siteID:
@@ -165,55 +200,54 @@ class Site:
                 if not os.path.isfile(sF):
                     sourceFiles = helper.dictToDataclass(Search,self.sourceFiles,['ID'],pop=True)
                 else:
-                    debug=False
-                    sourceFiles = helper.dictToDataclass(Search,helper.loadDict(sF),['ID'],pop=True,debug=debug)
+                    sourceFiles = helper.dictToDataclass(Search,helper.loadDict(sF),['ID'],pop=True)
                 if len(sourceFiles)>1 and self.sourceFiles['ID'] in sourceFiles:
                     sourceFiles.pop(self.sourceFiles['ID'])
                 helper.saveDict(sourceFiles,sF)
 
-@dataclass
-class searchInventory:
-    # Manages the search class
-    projectPath: str = None
-    siteID: str = None
-    measurementID: str = None
-    template: bool = False
-    sourceFiles: Search = field(default_factory=lambda:Search(template=True).__dict__)
+# @dataclass
+# class searchInventory:
+#     # Manages the search class
+#     projectPath: str = None
+#     siteID: str = None
+#     measurementID: str = None
+#     template: bool = False
+#     sourceFiles: Search = field(default_factory=lambda:Search(template=True).__dict__)
 
-    def __post_init__(self):
-        if self.projectPath is None or not os.path.isdir(self.projectPath):
-            return
-        sF = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,'sourceFiles.json')
-        if self.template and not os.path.isfile(sF):
-            for k,v in self.__dataclass_fields__.items():
-                if v.repr and self.__dict__[k] is None:
-                    self.__dict__[k] = v.name
-        else:
-            self.rmID = self.__dataclass_fields__['sourceFiles'].default_factory()['ID']
-            self.process(sF)
+#     def __post_init__(self):
+#         if self.projectPath is None or not os.path.isdir(self.projectPath):
+#             return
+#         sF = os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID,'sourceFiles.json')
+#         if self.template and not os.path.isfile(sF):
+#             for k,v in self.__dataclass_fields__.items():
+#                 if v.repr and self.__dict__[k] is None:
+#                     self.__dict__[k] = v.name
+#         else:
+#             self.rmID = self.__dataclass_fields__['sourceFiles'].default_factory()['ID']
+#             self.process(sF)
 
-        if 'ID' in self.sourceFiles:
-            ID = self.sourceFiles.pop('ID')
-            self.sourceFiles = {ID:self.sourceFiles}
-        else:
-            if len(self.sourceFiles)>1:
-                self.sourceFiles.pop(self.rmID)
-        helper.saveDict(self.sourceFiles,sF)
+#         if 'ID' in self.sourceFiles:
+#             ID = self.sourceFiles.pop('ID')
+#             self.sourceFiles = {ID:self.sourceFiles}
+#         else:
+#             if len(self.sourceFiles)>1:
+#                 self.sourceFiles.pop(self.rmID)
+#         helper.saveDict(self.sourceFiles,sF)
 
-    def process(self,sF):
-        if os.path.isfile(sF):
-            sourceFiles = helper.loadDict(sF)
-            sourceFiles = helper.dictToDataclass(Search,sourceFiles,['ID'],pop=True)
-        else:
-            sourceFiles = None
-        if sourceFiles is None or self.sourceFiles != self.__dataclass_fields__['sourceFiles'].default_factory():
-            if type(self.sourceFiles) is str and os.path.isfile(self.sourceFiles):
-                self.sourceFiles = helper.loadDict(self.sourceFiles)
-            elif type(self.sourceFiles) is not dict:
-                log(msg='input must be dict or filepath')
-            self.sourceFiles = helper.dictToDataclass(Search,self.sourceFiles,['ID'],pop=True)
-            if sourceFiles:
-                self.sourceFiles = helper.updateDict(sourceFiles,self.sourceFiles)
-        else:
-            self.sourceFiles = sourceFiles
+#     def process(self,sF):
+#         if os.path.isfile(sF):
+#             sourceFiles = helper.loadDict(sF)
+#             sourceFiles = helper.dictToDataclass(Search,sourceFiles,['ID'],pop=True)
+#         else:
+#             sourceFiles = None
+#         if sourceFiles is None or self.sourceFiles != self.__dataclass_fields__['sourceFiles'].default_factory():
+#             if type(self.sourceFiles) is str and os.path.isfile(self.sourceFiles):
+#                 self.sourceFiles = helper.loadDict(self.sourceFiles)
+#             elif type(self.sourceFiles) is not dict:
+#                 log(msg='input must be dict or filepath')
+#             self.sourceFiles = helper.dictToDataclass(Search,self.sourceFiles,['ID'],pop=True)
+#             if sourceFiles:
+#                 self.sourceFiles = helper.updateDict(sourceFiles,self.sourceFiles)
+#         else:
+#             self.sourceFiles = sourceFiles
 

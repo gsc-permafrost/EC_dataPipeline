@@ -9,7 +9,7 @@ import pandas as pd
 from typing import Literal
 from dataclasses import dataclass,field
 
-from rawDataFile import genericLoggerFile
+from rawDataFile_bu2 import genericLoggerFile
 
 
 def loadYAML(fpath,verbose=False):
