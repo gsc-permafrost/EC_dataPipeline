@@ -1,18 +1,14 @@
-directoryStructure:
-  database:
-    .info: binary database files
-    defaultFormat:
-      data:
-        dtype: float32
-        info: data are stored as 32-bit floating point numbers
-      timestamp:
-        dtype: float64
-        timezone: UTC
-        info: the POSIX_timestamp is stored as a 64-bit floating point number, representing the seconds elapsed since 1970-01-01 00:00 UTC time        
-  metadata: 
-    .info: yaml files containing metadata
-  # templates:
-  #   .info: template files outlining the structure that can be used to define the metadata for a project.  If edited, these files should be moved to the metadata folder and labeled using the appropriate siteID
-  # sites: 
-  #   .info: raw data files from sites
-  #   defaultFormat: null
+# directoryStructure:
+.Metadata: This file contains relevant metadata and maps the project directory.  Any key that starts with a "." contains or maps to metadata, any key that does not start with a "." maps to a location in the project directory containing data.
+Sites:
+  .Metadata: Contains metadata pertaining to sites their respective measurements
+database:
+  .Metadata: binary database files
+  .defaultFormat:
+    .data:
+      .dtype: float32
+      .info: data are stored as 32-bit floating point numbers
+    .timestamp:
+      .dtype: float64
+      .timezone: UTC
+      .info: the POSIX_timestamp is stored as a 64-bit floating point number, representing the seconds elapsed since 1970-01-01 00:00 UTC time        

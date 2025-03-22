@@ -1,4 +1,5 @@
 import re
+import os
 import numpy as np
 import pandas as pd
 import dateutil.parser as dateParse 
@@ -7,55 +8,63 @@ import helperFunctions as helper
 
 @dataclass
 class observation:
-    fillChar: str = '_'
+    fillChar = '_'
+    safe_name: str = None
     ignore: bool = False
     name_in: str = None
     unit_in: str = None
-    safe_name: str = None
     dtype: str = None
     variableDescription: str = None
-
+    verbose: bool = field(default=False,repr=False)
     def __post_init__(self):
         if self.name_in is not None:
-            self.safe_name = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.name_in)
-        self.ignore = not np.issubdtype(self.dtype,np.number)
-        if self.safe_name == self.fillChar*len(self.safe_name):
-            self.ignore = True
-        self.dtype = self.dtype.str
+            if self.safe_name is None:
+                self.safe_name = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.name_in)
+            if self.safe_name == self.fillChar*len(self.safe_name):
+                self.ignore = True
+            else:
+                self.safe_name = self.safe_name.rstrip('_')
+            self.ignore = not np.issubdtype(self.dtype,np.number)
+            self.dtype = self.dtype.str
+            if self.safe_name != self.name_in and self.verbose:
+                helper.log(['Re-named: ',self.name_in,' to: ',self.safe_name])
         
 @dataclass(kw_only=True)
 class genericLoggerFile:
     # Important attributes to be associated with a generic logger file
-    verbose: bool = field(default=True,repr=False)
+    projectPath: str = None
     siteID: str = None
     measurementID: str = None
     fileType: str = None
+    Variables: dict = field(default_factory=lambda:{})
+    colMap: dict = field(default_factory=lambda:{},repr=False)
     Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
+    verbose: bool = field(default=True,repr=False)
     def __post_init__(self):
         if self.fileType is None:
             self.fileType = type(self).__name__
         self.Metadata = {k:self.__dict__[k] for k,v in genericLoggerFile.__dataclass_fields__.items() if v.repr}
-        # for field_value in type(self).__mro__[-2].__dataclass_fields__.values():
-        #     # print(field_value)
-        #     # exclude a subset of items from the attributes
-        #     if not (field_value.type == type(pd.DataFrame()) or field_value.name=='verbose'):
-        #         self.Metadata[field_value.name] = self.__dict__[field_value.name]     
+        safe_name = {col:None if col not in self.colMap else self.colMap[col] for col in self.Data.columns}
+        self.Metadata['Variables'] = helper.dictToDataclass(
+            observation,{col:{'name_in':col,'dtype':self.Data[col].dtype,'safe_name':safe_name[col]} for col in self.Data.columns},['name_in'],pop=True,constants={'verbose':self.verbose})
+        if self.projectPath and self.siteID and self.measurementID:
+            print(os.path.join(self.projectPath,'metadata',self.siteID,self.measurementID))
 
-        self.Metadata['Variables'] = {}
-        newNames = []
-        if self.verbose: helper.log('Standardizing and documenting traces')
-        for col in self.Data.columns:
-            # Generate Metadata for each observation
-            obs = observation(name_in=col,dtype=self.Data[col].dtype)
-            if obs.safe_name != obs.name_in and self.verbose:
-                helper.log(['Re-named: ',obs.name_in,' to: ',obs.safe_name])
-            self.Metadata['Variables'][obs.safe_name] = obs.__dict__
-            newNames.append(obs.safe_name)
-        self.Data.columns = newNames
+
+        # print()
+        # newNames = []
+        # if self.verbose: helper.log('Standardizing and documenting traces')
+        # for col in self.Data.columns:
+        #     # Generate Metadata for each observation
+        #     obs = observation(name_in=col,dtype=self.Data[col].dtype)
+        #     if obs.safe_name != obs.name_in and self.verbose:
+        #         helper.log(['Re-named: ',obs.name_in,' to: ',obs.safe_name])
+        #     self.Metadata['Variables'][obs.safe_name] = obs.__dict__
+        #     newNames.append(obs.safe_name)
+        # self.Data.columns = newNames
 
 @dataclass(kw_only=True)
-class hoboCSV(genericLoggerFile):
-    # fileType = 'HOBOcsv'
+class HOBOcsv(genericLoggerFile):
     sourceFile: str
     verbose: bool = True
     timestamp: str = "Date Time"
