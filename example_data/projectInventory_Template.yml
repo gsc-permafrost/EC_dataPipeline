@@ -12,7 +12,7 @@ SCL:
   Measurements:
     Flux:
       measurementID: Flux
-      fileType: TOBA
+      fileType: TOB3
       sampleFrequency: 50ms
       description: High frequency (20 Hz) Eddy Covariance data
       latitude: 69.2098

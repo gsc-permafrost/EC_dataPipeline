@@ -103,12 +103,14 @@ def loadDict(file,verbose=False,safemode=False):
             with open(file) as f:
                 out = json.load(f)   
     elif not safemode:
-        if verbose: print(f"{file} does not exist, creating empty file")
+        if verbose: log(f"{file}\ndoes not exist, creating empty file")
         out = {}
         saveDict(out,file)
     elif verbose:
         out = None
         print(f"{file} does not exist")
+    log(file,fn=False,verbose=verbose)
+    log(out,fn=False,verbose=verbose)
     return(out)
 
 def saveDict(obj,outputPath,sort_keys=False,indent=None):
