@@ -5,6 +5,7 @@ import fnmatch
 from pathlib import Path
 from dataclasses import dataclass,field
 
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 
@@ -152,35 +153,65 @@ class database:
             parserKwargs = Measurement['sourceFiles'][sourceID]['parserKwargs']
             for file in sourceFiles:
                 if not sourceFiles[file]['loaded']:
-                    source = method(sourceFile=file,siteID=siteID,measurementID=measurementID,verbose=False,**parserKwargs)          
-                    sourceFiles[file]['loaded'] = True
-                    sourceInventory[sourceID][file]['parserKwargs'] = helper.reprToDict(source)
-                    print(source)
-    #                 self.writeDB(os.path.join(self.projectPath,'database',siteID,measurementID),source)
+                    source = method(sourceFile=file,siteID=siteID,measurementID=measurementID,verbose=False,**parserKwargs)   
+                    if not source.Data.empty:
+                        sourceFiles[file]['loaded'] = True
+                        sourceInventory[sourceID][file]['parserKwargs'] = helper.reprToDict(source)
+                        for year in source.Data.index.year.unique():
+                            databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID,str(year)),year=year,Data=source.Data,variableMap=source.variableMap)
     
-    # def writeDB(self,dbpath,source):
-    #     if source.frequency is None:
-    #         source.frequency = self.projectInfo['database']['.defaultFormat']['.POSIX_timestamp']['.frequency']
-    #     Years = source.Data.index.year.unique()
-    #     for year in Years:
-    #         self.databaseFolder(os.path.join(dbpath,str(year)))
-    #         byYear = pd.DataFrame(index=pd.date_range(str(year),str(year+1),freq=source.frequency,inclusive='right'))
-    #         byYear['POSIX_timestamp'] = (byYear.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-    #         byYear = byYear.join(source.Data)
-    #         log(byYear)
-
 
 @dataclass(kw_only=True)
 class databaseFolder:
+    POSIX_timestamp: dict = field(default_factory=lambda:{'dtype': 'float64','frequency': '30min','timezone': 'UTC','ignore':False,'variableDescription': 'the POSIX_timestamp is stored as a 64-bit floating point number representing the seconds elapsed since 1970-01-01 00:00 UTC time'})
     path: str
-    write: pd.DataFrame = None
+    year: int
+    verbose: bool = True
+    Data: pd.DataFrame = field(default_factory=lambda:pd.DataFrame())
     variableMap: dict = field(default_factory=lambda:{})
 
     def __post_init__(self):
-        log(os.path.isfile(os.path.join(self.path,'variableMap.yml')))
+        self.write = bool(self.variableMap) and not self.Data.empty
+        self.Data = self.Data.drop([col for col,val in self.variableMap.items() if val['ignore']],axis=1)
+        self.variableMap = {key:values for key,values in self.variableMap.items() if not values['ignore']}
+        self.variableMap = {'POSIX_timestamp':self.POSIX_timestamp} |self.variableMap
+        
+        if os.path.isfile(os.path.join(self.path,'_variableMap.yml')) and os.path.exists(os.path.join(self.path,'POSIX_timestamp')):
+            self.Data = self.read()
+        else:
+            self.Data = self.emptyYear(self.year)
 
-    # def databaseFolder(self,dbpath,write=None,filter = None):
-    #     if os.path.isdir(dbpath):
-    #         files = [f for f in os.listdir(dbpath) if '.' not in f and (filter is None or f in filter and f)]
-    #     else:
-    #         os.makedirs(dbpath)
+        if self.write:
+            self.writeYear()
+        self.Data.index.name = 'UTC'
+        helper.saveDict(self.variableMap,os.path.join(self.path,'_variableMap.yml'))
+
+    def emptyYear(self,year):
+        dataset = pd.DataFrame(index=pd.date_range(str(year),str(year+1),freq=self.POSIX_timestamp['frequency'],inclusive='right'))
+        dataset['POSIX_timestamp'] = (dataset.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+        for col in self.Data.columns:
+            if col in dataset.columns:
+                dataset[col] = dataset[col].fillna(self.Data[col])
+            else:
+                dataset = dataset.join(self.Data[[col]])
+        return(dataset)
+
+    def read(self):
+        vm = helper.loadDict(os.path.join(self.path,'_variableMap.yml'))
+        dataset = {f:np.fromfile(os.path.join(self.path,f),dtype=vm[f]['dtype']) for f in os.listdir(self.path) if not f.endswith('.yml')}
+        self.variableMap = vm|self.variableMap
+        dataset = pd.DataFrame(data = dataset)
+        dataset.index=pd.to_datetime(dataset['POSIX_timestamp'],unit='s')
+        for col in self.Data.columns:
+            if col in dataset.columns:
+                dataset[col] = dataset[col].fillna(self.Data[col])
+            else:
+                dataset = dataset.join(self.Data[[col]])
+        return(dataset)
+
+    def writeYear(self):
+        for col in self.Data.columns:
+            if not os.path.isdir(self.path): os.makedirs(self.path)
+            fname = os.path.join(self.path,col)
+            log(f'Writing: {fname}',ln=False,verbose=self.verbose)
+            self.Data[col].astype(self.variableMap[col]['dtype']).values.tofile(fname)

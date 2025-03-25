@@ -14,8 +14,8 @@ log = helper.log
 class columnMap:
     dtype_map_numpy = {"IEEE4B": "float32","IEEE8B": "float64","FP2": "float16"}
     fillChar = '_'
-    inputName: str = field(repr=False)
-    safeName: str = None
+    originalName: str
+    safeName: str = field(default=None,repr=False)
     ignore: bool = True
     unit: str = None
     dtype: str = None
@@ -23,9 +23,9 @@ class columnMap:
     variableDescription: str = None
     verbose: bool = field(default=False,repr=False)
     def __post_init__(self):
-        if self.inputName is not None:
+        if self.originalName is not None:
             if self.safeName is None:
-                self.safeName = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.inputName)
+                self.safeName = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.originalName)
             else:
                 self.safeName = self.safeName.rstrip('_')
             if self.dtype is not None:
@@ -38,8 +38,8 @@ class columnMap:
                 self.dtype = self.dtype.str
             if self.safeName == self.fillChar*len(self.safeName):
                 self.ignore = True
-            if self.safeName != self.inputName and self.verbose:
-                log(['Re-named: ',self.inputName,' to: ',self.safeName])
+            if self.safeName != self.originalName and self.verbose:
+                log(['Re-named: ',self.originalName,' to: ',self.safeName])
         
 @dataclass(kw_only=True)
 class genericLoggerFile:
@@ -56,11 +56,12 @@ class genericLoggerFile:
     def __post_init__(self):
         # Create the template column map, fill column dtype where not present 
         self.variableMap = {key:{'dtype':self.Data[key].dtype}|self.variableMap[key] if key in self.variableMap else {'dtype':self.Data[key].dtype} for key in self.Data.columns}
-        self.variableMap = {var.inputName:helper.reprToDict(var) for var in map(lambda name: columnMap(inputName = name, **self.variableMap[name]),self.variableMap.keys())}
+        self.variableMap = {var.safeName:helper.reprToDict(var) for var in map(lambda name: columnMap(originalName = name, **self.variableMap[name]),self.variableMap.keys())}
+
 
     def applySafeNames(self):
-        self.safeMap = {col:val['safeName'] for col,val in self.variableMap.items()}
-        self.backMap = {safeName:col for col,safeName in self.safeMap.items()}
+        self.safeMap = {val['originalName']:safeName for safeName,val in self.variableMap.items()}
+        self.backMap = {safeName:originalName for originalName,safeName in self.safeMap.items()}
         self.Data = self.Data.rename(columns=self.safeMap)
 
 @dataclass(kw_only=True)
@@ -104,8 +105,8 @@ class asciiHeader(genericLoggerFile):
                                             )}
             dtype_map_struct = {"IEEE4B": "f","IEEE8B": "d","FP2": "H"}
             self.byteMap = ''.join([dtype_map_struct[var['dtype']] for var in self.variableMap.values()])
-            self.variableMap = {var.inputName:helper.reprToDict(var) for var in map(
-                                    lambda name: columnMap(inputName = name, **self.variableMap[name]),self.variableMap.keys()
+            self.variableMap = {var.originalName:helper.reprToDict(var) for var in map(
+                                    lambda name: columnMap(originalName = name, **self.variableMap[name]),self.variableMap.keys()
                                     )}
 
         elif self.fileType == 'TOA5':
@@ -117,9 +118,9 @@ class asciiHeader(genericLoggerFile):
                                             self.parseLine(self.fileObject.readline()),
                                             self.parseLine(self.fileObject.readline()),
                                             )}
+            f = os.path.split(self.fileObject.name)[-1]
             self.fileTimestamp = pd.to_datetime(datetime.datetime.strptime(re.search(r'([0-9]{4}\_[0-9]{2}\_[0-9]{2}\_[0-9]{4})', f.rsplit('.',1)[0]).group(0),'%Y_%m_%d_%H%M'))
         self.fileTimestamp = self.fileTimestamp.strftime('%Y-%m-%dT%H:%M:%S')
-        super().__post_init__()
                 
     def parseLine(self,line):
         return(line.decode('ascii').strip().replace('"','').split(','))
@@ -152,7 +153,7 @@ class TOB3(asciiHeader):
             if self.readData:
                 self.Data, Timestamp = self.readFrames()
                 self.Data = pd.DataFrame(self.Data)
-                self.Data.columns = [v['safeName'] for v in self.variableMap.values()]
+                self.Data.columns = [var for var in self.variableMap]
                 Timestamp = pd.to_datetime(Timestamp,unit='s')
                 self.Data.index=Timestamp.round(self.frequency)
                 self.Data.index.name = 'TIMESTAMP'
@@ -165,6 +166,7 @@ class TOB3(asciiHeader):
                         data = {f"{col}_{agg}":val 
                                 for col in Agg.keys() 
                                 for agg,val in Agg[col].items()})
+                genericLoggerFile.__post_init__(self)
             
     def readFrames(self):
         Header_size = 12
@@ -204,7 +206,7 @@ class TOB3(asciiHeader):
                     readFrame = False
             else:
                 readFrame = False
-        print('Frames ',i)
+        log('Frames ',i,verbose=self.verbose)
         if i > 0:
             return (data,np.array(Timestamp).flatten())
         else:
