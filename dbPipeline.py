@@ -1,16 +1,21 @@
 import os
 import sys
-# import shutil
+import copy
 import fnmatch
-# import datetime
+from pathlib import Path
 from dataclasses import dataclass,field
+
+import pandas as pd
+import geopandas as gpd
 
 import siteCoordinates
 import helperFunctions as helper
 import rawDataFile
+import siteInventory
 
 import importlib
 importlib.reload(siteCoordinates)
+importlib.reload(siteInventory)
 importlib.reload(rawDataFile)
 importlib.reload(helper)
 
@@ -27,7 +32,8 @@ class database:
     siteIDs: list = field(default_factory=lambda:[])
     siteInventory: dict = field(default_factory=lambda:{})
     projectInfo: dict = field(default_factory=lambda:helper.loadDict(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml')))
-    
+    mapTemplate: str = field(default_factory=lambda:Path(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','MapTemplate.html')).read_text())
+ 
     def __post_init__(self):
         if self.projectPath:
             if not os.path.isdir(self.projectPath) or len(os.listdir(self.projectPath)) == 0:
@@ -64,7 +70,7 @@ class database:
         # Read existing sites
         for siteID in self.siteIDs:
             record = helper.loadDict(os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-            self.siteInventory[siteID] = helper.dictToDataclass(siteRecord,record,constants={'dpath':os.path.join(self.projectPath,'Sites')})
+            self.siteInventory[siteID] = helper.dictToDataclass(siteInventory.siteRecord,record,constants={'dpath':os.path.join(self.projectPath,'Sites')})
         # If given a file template for new sites
         if type(newSites) is str and os.path.isfile(newSites):
             newSites = helper.loadDict(newSites)
@@ -76,15 +82,30 @@ class database:
                 newSites = {new:helper.loadDict(os.path.join(self.projectPath,'Sites',new,f"{new}_metadata.yml")) for new in additions}
         # If there are any new sits, process them        
         if newSites != {}:
-            newSites = helper.dictToDataclass(siteRecord,newSites,ID=['siteID'],constants={'dpath':os.path.join(self.projectPath,'Sites')})
+            newSites = helper.dictToDataclass(siteInventory.siteRecord,newSites,ID=['siteID'],constants={'dpath':os.path.join(self.projectPath,'Sites')})
             self.siteInventory = helper.updateDict(self.siteInventory,newSites)
         # If no sites exist yet, create a template
         if self.siteInventory == {}:
-            template = {k:v for k,v in siteRecord.__dict__.items() if k[0:2] != '__'}
-            self.siteInventory = helper.dictToDataclass(siteRecord,template,ID=['siteID'],constants={'dpath':os.path.join(self.projectPath,'Sites'),'template':True},debug=True)
+            template = {k:v for k,v in siteInventory.siteRecord.__dict__.items() if k[0:2] != '__'}
+            self.siteInventory = helper.dictToDataclass(siteInventory.siteRecord,template,ID=['siteID'],constants={'dpath':os.path.join(self.projectPath,'Sites'),'template':True},debug=True)
+
+        # save the inventory and make a webmap of sites
+        siteDF = pd.DataFrame()
         for siteID,values in self.siteInventory.items():
-            self.projectInfo['Sites'][siteID] = values['Name']
+            self.projectInfo['Sites'][siteID] = {'Name':values['Name'],
+                                                 'description':values['description'],
+                                                 'latitude':values['latitude'],
+                                                 'longitude':values['longitude'],
+            }
             self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+                
+            if not siteID.startswith('.'):
+                siteDF = pd.concat([siteDF,pd.DataFrame(data = self.projectInfo['Sites'][siteID], index=[siteID])])
+        if not siteDF.empty:
+            Site_WGS = gpd.GeoDataFrame(siteDF, geometry=gpd.points_from_xy(siteDF.longitude, siteDF.latitude), crs="EPSG:4326")
+            self.mapTemplate = self.mapTemplate.replace('fieldSitesJson',Site_WGS.to_json())
+            with open(os.path.join(self.projectPath,'fieldSiteMap.html'),'w+') as out:
+                out.write(self.mapTemplate)
 
     def rawFileSearch(self,siteID,measurementID,sourcePath=None,wildcard='*',parserKwargs={}):
         if sourcePath and os.path.isdir(sourcePath):
@@ -94,24 +115,24 @@ class database:
         if sourceID in sourceFiles and parserKwargs=={}:
             kwargs = sourceFiles[sourceID]
         fn = os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json')
-        # template={'fileList':[],'loadList':[],'variableMap':{}}
         template={'loaded':False,'parserKwargs':parserKwargs}
         sourceInventory = helper.loadDict(fn)
         if sourceID not in sourceInventory:
             sourceInventory[sourceID] = {}
-        sourceMap = sourceRecord(**kwargs)
+        sourceMap = siteInventory.sourceRecord(**kwargs)
 
         fileList = []
         if sourceMap.sourcePath and os.path.isdir(sourceMap.sourcePath):
             for dir,_,files in os.walk(sourceMap.sourcePath):
                 fileList += [os.path.join(dir,f) for f in files if fnmatch.fnmatch(os.path.join(dir,f),sourceMap.wildcard) and os.path.join(dir,f) not in sourceInventory[sourceID]]
+        
         log('make robust to kwarg update')
-        sourceInventory[sourceID] = sourceInventory[sourceID] | {f:template for f in fileList}
+        sourceInventory[sourceID] = sourceInventory[sourceID] | {f:copy.deepcopy(template) for f in fileList}
         
 
         sourceFiles[sourceID] = helper.reprToDict(sourceMap)
-        if len(sourceFiles)>1 and sourceRecord.sourceID in sourceFiles:
-            sourceFiles.pop(sourceRecord.sourceID)
+        if len(sourceFiles)>1 and siteInventory.sourceRecord.sourceID in sourceFiles:
+            sourceFiles.pop(siteInventory.sourceRecord.sourceID)
         self.rawFileImport(siteID,measurementID,sourceInventory)
         self.save(sourceInventory,fn)
         self.save(self.siteInventory[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
@@ -134,86 +155,32 @@ class database:
                     source = method(sourceFile=file,siteID=siteID,measurementID=measurementID,verbose=False,**parserKwargs)          
                     sourceFiles[file]['loaded'] = True
                     sourceInventory[sourceID][file]['parserKwargs'] = helper.reprToDict(source)
-                    # self.save(source.variableMap,os.path.join(self.projectPath,'Sites',siteID,measurementID,'variableMap.yml'))
-
-
-######################################################################################################################
-# Data Source Management
-######################################################################################################################
-
-
-@dataclass(kw_only=True)
-class sourceRecord:
-    # executes a file search using wildcard pattern matching cross references against a list of exiting files
-    sourceID: str = os.path.join('sourcePath','*wildcard*')
-    sourcePath: str = 'sourcePath'
-    wildcard: str = '*wildcard*'
-    parserKwargs: dict = field(default_factory=lambda:{})
-
-    def __post_init__(self):
-        if self.sourcePath != 'sourcePath' and os.path.isdir(self.sourcePath):
-            self.sourcePath = os.path.abspath(self.sourcePath)
-        self.sourceID = os.path.join(self.sourcePath,self.wildcard)
-
-@dataclass(kw_only=True)
-class measurementRecord:
-    # Records pertaining to a measurement set
-    measurementID: str = '.measurementID'
-    description: str = 'This is a template for defining measurement-level metadata'
-    fileType: str = None
-    sampleFrequency: str = None
-    description: str = None
-    latitude: float = None
-    longitude: float = None
-    startDate: str = None
-    stopDate: str = None
-    sourceFiles: sourceRecord = field(default_factory=lambda:{k:v for k,v in sourceRecord.__dict__.items() if k[0:2] != '__'})
-    template: bool = field(default=False,repr=False)
-    dpath: str = field(default=None,repr=False)
-
-    def __post_init__(self):
-        if self.measurementID:
-            if self.measurementID != '.measurementID':
-                self.measurementID = helper.safeFmt(self.measurementID)
-            coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
-            self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
-            if type(list(self.sourceFiles.values())[0]) is not dict:
-                self.sourceFiles = {'':self.sourceFiles}
-            if self.dpath:
-                pth = os.path.join(self.dpath,self.measurementID)
-            else:
-                pth = None
-            self.sourceFiles = helper.dictToDataclass(sourceRecord,self.sourceFiles,ID=['sourceID'],constants={'dpath':pth},pop=True)
-            if len(self.sourceFiles)>1 and self.__dataclass_fields__['sourceFiles'].default_factory()['sourceID'] in self.sourceFiles:
-                self.sourceFiles.pop(self.__dataclass_fields__['sourceFiles'].default_factory()['sourceID'])                
-
-@dataclass(kw_only=True)
-class siteRecord:
-    # Records pertaining to a field site, including a record of measurements from the site
-    siteID: str = '.siteID'
-    description: str = 'This is a template for defining site-level metadata'
-    Name: str = None
-    PI: str = None
-    startDate: str = None
-    stopDate: str = None
-    landCoverType: str = None
-    latitude: float = None
-    longitude: float = None
-    Measurements: measurementRecord = field(default_factory=lambda:{k:v for k,v in measurementRecord.__dict__.items() if k[0:2] != '__'})
-    dpath: str = field(default=None,repr=False)
+                    print(source)
+    #                 self.writeDB(os.path.join(self.projectPath,'database',siteID,measurementID),source)
     
+    # def writeDB(self,dbpath,source):
+    #     if source.frequency is None:
+    #         source.frequency = self.projectInfo['database']['.defaultFormat']['.POSIX_timestamp']['.frequency']
+    #     Years = source.Data.index.year.unique()
+    #     for year in Years:
+    #         self.databaseFolder(os.path.join(dbpath,str(year)))
+    #         byYear = pd.DataFrame(index=pd.date_range(str(year),str(year+1),freq=source.frequency,inclusive='right'))
+    #         byYear['POSIX_timestamp'] = (byYear.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+    #         byYear = byYear.join(source.Data)
+    #         log(byYear)
+
+
+@dataclass(kw_only=True)
+class databaseFolder:
+    path: str
+    write: pd.DataFrame = None
+    variableMap: dict = field(default_factory=lambda:{})
+
     def __post_init__(self):
-        if self.siteID:
-            if self.siteID != '.siteID':
-                self.siteID = helper.safeFmt(self.siteID)
-            coordinates = siteCoordinates.coordinates(self.latitude,self.longitude)
-            self.latitude,self.longitude = coordinates.GCS['y'],coordinates.GCS['x']
-            if type(list(self.Measurements.values())[0]) is not dict:
-                self.Measurements = {'':self.Measurements}
-            if self.dpath:
-                pth = os.path.join(self.dpath,self.siteID)
-            else:
-                pth = None
-            self.Measurements = helper.dictToDataclass(measurementRecord,self.Measurements,ID=['measurementID'],constants={'dpath':pth})
+        log(os.path.isfile(os.path.join(self.path,'variableMap.yml')))
 
-
+    # def databaseFolder(self,dbpath,write=None,filter = None):
+    #     if os.path.isdir(dbpath):
+    #         files = [f for f in os.listdir(dbpath) if '.' not in f and (filter is None or f in filter and f)]
+    #     else:
+    #         os.makedirs(dbpath)

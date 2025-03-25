@@ -11,6 +11,7 @@ from typing import Literal
 from dataclasses import dataclass,field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from pydantic import ConfigDict
+import helperFunctions as helper
 
 @pydantic_dataclass(config=ConfigDict(coerce_numbers_to_str=True))
 class UTM:

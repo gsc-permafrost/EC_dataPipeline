@@ -7,16 +7,16 @@ SCL:
   startDate: 2024-07-20
   stopDate: null
   landCoverType: Sedge Wetland
-  latitude: 69.2098
-  longitude: -135.2519067
+  latitude: 'N69 13.5850'
+  longitude: 'W135 15.1144'
   Measurements:
     Flux:
       measurementID: Flux
       fileType: TOB3
       sampleFrequency: 50ms
       description: High frequency (20 Hz) Eddy Covariance data
-      latitude: 69.2098
-      longitude: -135.2519067
+      latitude: '69 13.5850'
+      longitude: 'W135 15.1144'
       startDate: 2024-07-20
       stopDate: null
     SSM_Profile:
@@ -24,8 +24,8 @@ SCL:
       fileType: HOBOcsv
       sampleFrequency: 30m
       description: HOBO logger in salix sedge meadow
-      latitude: 69.2253983
-      longitude: -135.2522633
+      latitude: 'N 69 13.5239'
+      longitude: 'W135 15.1358'
       startDate: 2024-07-20
       stopDate: null
     WSM_Profile:
@@ -33,7 +33,34 @@ SCL:
       fileType: HOBOcsv
       sampleFrequency: 30m
       description: HOBO logger in wet sedge meadow
-      latitude: 69.2258683
-      longitude: -135.252265
+      latitude: 'N 69 13.5521'
+      longitude: 'W135 15.1350'
       startDate: 2024-07-20
       stopDate: null
+ILL:
+  siteID: ILL
+  Name: Illisarvik
+  PI: Chris Burn
+  description: Eddy Covariance site in an artificially drained thermokarst lake basin on Richard's Island
+  stopDate: 2016-08-07
+  landCoverType: Low Shrub/Meadow
+  latitude: N69 28 47.5
+  longitude: W134 35 18.7
+  startDate: 2016-07-08
+FIL:
+  siteID: FIL
+  Name: Fish Island
+  PI: June Skeeter
+  description: Eddy covariance station low center polygon permafrost peatland site in the Mackenzie River Delta
+  stopDate: '2017-09-13'
+  landCoverType: Peatland
+  latitude: N69 22 20.20
+  longitude: W134 52 51.92
+  startDate: 2017-06-21
+  samplePoints:
+    RIM:
+      pointID: RIM
+      description: Polygon rim
+    CNT:
+      pointID: CNT
+      description: Polygon centre

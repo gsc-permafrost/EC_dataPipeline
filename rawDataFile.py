@@ -10,7 +10,7 @@ import helperFunctions as helper
 
 log = helper.log
 
-@dataclass
+@dataclass(kw_only=True)
 class columnMap:
     dtype_map_numpy = {"IEEE4B": "float32","IEEE8B": "float64","FP2": "float16"}
     fillChar = '_'
@@ -19,7 +19,7 @@ class columnMap:
     ignore: bool = True
     unit: str = None
     dtype: str = None
-    aggregation: str = None
+    frequency: str = None
     variableDescription: str = None
     verbose: bool = field(default=False,repr=False)
     def __post_init__(self):
@@ -31,6 +31,8 @@ class columnMap:
             if self.dtype is not None:
                 if self.dtype in self.dtype_map_numpy:
                     self.dtype = np.dtype(self.dtype_map_numpy[self.dtype])
+                else:
+                    self.dtype = np.dtype(self.dtype)
                 self.ignore = not np.issubdtype(self.dtype,np.number)
             if self.dtype:
                 self.dtype = self.dtype.str
@@ -42,7 +44,6 @@ class columnMap:
 @dataclass(kw_only=True)
 class genericLoggerFile:
     # Important attributes to be associated with a generic logger file
-    projectPath: str = None
     siteID: str = None
     measurementID: str = None
     timezone: str = None
@@ -57,7 +58,10 @@ class genericLoggerFile:
         self.variableMap = {key:{'dtype':self.Data[key].dtype}|self.variableMap[key] if key in self.variableMap else {'dtype':self.Data[key].dtype} for key in self.Data.columns}
         self.variableMap = {var.inputName:helper.reprToDict(var) for var in map(lambda name: columnMap(inputName = name, **self.variableMap[name]),self.variableMap.keys())}
 
-
+    def applySafeNames(self):
+        self.safeMap = {col:val['safeName'] for col,val in self.variableMap.items()}
+        self.backMap = {safeName:col for col,safeName in self.safeMap.items()}
+        self.Data = self.Data.rename(columns=self.safeMap)
 
 @dataclass(kw_only=True)
 class asciiHeader(genericLoggerFile):
@@ -85,12 +89,12 @@ class asciiHeader(genericLoggerFile):
             self.fileTimestamp = pd.to_datetime(header[-1])
             header = self.parseLine(self.fileObject.readline())
             self.Table = header[0]
-            self.frequency = f"{pd.to_timedelta(self.parseFreq(header[1])).total_seconds()}S"
+            self.frequency = f"{pd.to_timedelta(self.parseFreq(header[1])).total_seconds()}s"
             self.frameSize = int(header[2])
             self.val_stamp = int(header[4])        
             self.frameTime = pd.to_timedelta(self.parseFreq(header[5])).total_seconds()
             self.variableMap = {column:{'unit':unit,
-                                        'aggregation':aggregation,
+                                        'variableDescription':aggregation,
                                         'dtype':dtype
                                         } for column,unit,aggregation,dtype in zip(
                                             self.parseLine(self.fileObject.readline()),
@@ -107,14 +111,15 @@ class asciiHeader(genericLoggerFile):
         elif self.fileType == 'TOA5':
             self.Table = header[-1]
             self.variableMap = {column:{'unit':unit,
-                                        'aggregation':aggregation
-                                        } for column,unit,aggregation,dtype in zip(
+                                        'variableDescription':aggregation
+                                        } for column,unit,aggregation in zip(
                                             self.parseLine(self.fileObject.readline()),
                                             self.parseLine(self.fileObject.readline()),
                                             self.parseLine(self.fileObject.readline()),
                                             )}
             self.fileTimestamp = pd.to_datetime(datetime.datetime.strptime(re.search(r'([0-9]{4}\_[0-9]{2}\_[0-9]{2}\_[0-9]{4})', f.rsplit('.',1)[0]).group(0),'%Y_%m_%d_%H%M'))
         self.fileTimestamp = self.fileTimestamp.strftime('%Y-%m-%dT%H:%M:%S')
+        super().__post_init__()
                 
     def parseLine(self,line):
         return(line.decode('ascii').strip().replace('"','').split(','))
@@ -126,7 +131,7 @@ class asciiHeader(genericLoggerFile):
             if match:
                 s = s[match.start():]
             return s 
-        freqDict = {'MSEC':'ms','Usec':'us','Sec':'S','HR':'h','MIN':'min'}
+        freqDict = {'MSEC':'ms','Usec':'us','Sec':'s','HR':'h','MIN':'min'}
         freq = split_digit(text)
         for key,value in freqDict.items():
             freq = re.sub(key.lower(), value, freq, flags=re.IGNORECASE)
@@ -171,7 +176,7 @@ class TOB3(asciiHeader):
         Timestamp = []
         campbellBaseTime = pd.to_datetime('1990-01-01').timestamp()
         readFrame = True
-        frequency = float(self.frequency.rstrip('S'))
+        frequency = float(self.frequency.rstrip('s'))
         while readFrame:         
             sb = self.fileObject.read(self.frameSize)
             if len(sb)!=0:
@@ -229,8 +234,6 @@ class TOB3(asciiHeader):
             Body[ix] = FP2_map(Body[ix])
         return(Body)
 
-
-
 @dataclass(kw_only=True)
 class HOBOcsv(genericLoggerFile):
     sourceFile: str = field(repr=False)
@@ -253,9 +256,9 @@ class HOBOcsv(genericLoggerFile):
             ].apply(' '.join, axis=1).apply(dateParse.parse,yearfirst=self.yearfirst)
         self.statusCols = self.Data.columns[self.Data.columns.str.contains('|'.join(self.statusCols))].values
         self.Data[self.statusCols] = self.Data[self.statusCols].ffill(limit=1)
-        log('add fileTimestamp here')
         keep = pd.isna(self.Data[self.statusCols]).all(axis=1)
+        self.fileTimestamp = (self.Data.index[(self.Data[self.statusCols].isna()==False).any(axis=1).values].strftime('%Y-%m-%dT%H:%M:%S')).values[-1]
         self.Data = self.Data.loc[keep].copy()
-
         super().__post_init__()
+        self.applySafeNames()
 
