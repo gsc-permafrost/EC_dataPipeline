@@ -19,10 +19,28 @@ SCL:
       longitude: 'W135 15.1144'
       startDate: 2024-07-20
       stopDate: null
+    Met:
+      measurementID: Met
+      fileType: TOB3
+      sampleFrequency: 30min
+      description: Half-hourly biometeorologic data
+      latitude: '69 13.5850'
+      longitude: 'W135 15.1144'
+      startDate: 2024-07-20
+      stopDate: null
+    Metadata:
+      measurementID: Metadata
+      fileType: TOB3
+      sampleFrequency: 24h
+      description: Daily metadata
+      latitude: '69 13.5850'
+      longitude: 'W135 15.1144'
+      startDate: 2024-07-20
+      stopDate: null
     SSM_Profile:
       measurementID: SSM_Profile
       fileType: HOBOcsv
-      sampleFrequency: 30m
+      sampleFrequency: 30min
       description: HOBO logger in salix sedge meadow
       latitude: 'N 69 13.5239'
       longitude: 'W135 15.1358'
@@ -31,7 +49,7 @@ SCL:
     WSM_Profile:
       measurementID: WSM_Profile
       fileType: HOBOcsv
-      sampleFrequency: 30m
+      sampleFrequency: 30min
       description: HOBO logger in wet sedge meadow
       latitude: 'N 69 13.5521'
       longitude: 'W135 15.1350'

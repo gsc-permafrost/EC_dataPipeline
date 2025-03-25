@@ -126,6 +126,7 @@ class database:
         if sourceMap.sourcePath and os.path.isdir(sourceMap.sourcePath):
             for dir,_,files in os.walk(sourceMap.sourcePath):
                 fileList += [os.path.join(dir,f) for f in files if fnmatch.fnmatch(os.path.join(dir,f),sourceMap.wildcard) and os.path.join(dir,f) not in sourceInventory[sourceID]]
+                log(fileList)
         
         log('make robust to kwarg update')
         sourceInventory[sourceID] = sourceInventory[sourceID] | {f:copy.deepcopy(template) for f in fileList}
@@ -210,8 +211,9 @@ class databaseFolder:
         return(dataset)
 
     def writeYear(self):
+        log(self.path)
         for col in self.Data.columns:
             if not os.path.isdir(self.path): os.makedirs(self.path)
             fname = os.path.join(self.path,col)
-            log(f'Writing: {fname}',ln=False,verbose=self.verbose)
+            # log(f'Writing: {fname}',ln=False,verbose=self.verbose)
             self.Data[col].astype(self.variableMap[col]['dtype']).values.tofile(fname)
