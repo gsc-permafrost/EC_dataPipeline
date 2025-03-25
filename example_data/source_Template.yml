@@ -1,0 +1,41 @@
+SCL:
+  # Flux:
+  #   wildcard: '*Flux*.dat'
+  #   parserKwargs:
+  #     timezone: UTC
+  #     readData: True
+  #     calcStats: True
+  SSM_Profile:
+    wildcard: '*SSM*.dat'
+    parserKwargs:
+      timezone: UTC
+      variableMap:
+        "Temp, °C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 5)":
+            safeName: TS_1_1_1,
+            unit: deg C
+        "Temp, °C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 25)":
+            safeName: TS_2_1_1,
+            unit: deg C
+        "Temp, °C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 50)":
+            safeName: TS_3_1_1,
+            unit: deg C
+        "Temp, °C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 100)":
+            safeName: TS_4_1_1,
+            unit: deg C
+  WSM_Profile:
+    wildcard: '*WSM*.csv'
+    parserKwargs:
+      timezone: UTC
+      variableMap:
+        "Temp, °C (LGR S/N: 20750527, SEN S/N: 20750527, LBL: 5)":
+            safeName: TS_1_2_1,
+            unit: deg C
+        "Temp, °C (LGR S/N: 20750527, SEN S/N: 20750527, LBL: 25)":
+            safeName: TS_2_2_1,
+            unit: deg C
+        "Temp, °C (LGR S/N: 20750527, SEN S/N: 20750527, LBL: 50)":
+            safeName: TS_3_2_1,
+            unit: deg C
+        "Temp, °C (LGR S/N: 20750527, SEN S/N: 20750527, LBL: 100)":
+            safeName: TS_4_2_1,
+            unit: deg C
