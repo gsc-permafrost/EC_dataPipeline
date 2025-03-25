@@ -55,8 +55,11 @@ class genericLoggerFile:
 
     def __post_init__(self):
         # Create the template column map, fill column dtype where not present 
-        self.variableMap = {key:{'dtype':self.Data[key].dtype}|self.variableMap[key] if key in self.variableMap else {'dtype':self.Data[key].dtype} for key in self.Data.columns}
-        self.variableMap = {var.safeName:helper.reprToDict(var) for var in map(lambda name: columnMap(originalName = name, **self.variableMap[name]),self.variableMap.keys())}
+        self.variableMap = {key:{'dtype':self.Data[key].dtype,'originalName':key}|self.variableMap[key] 
+                                if key in self.variableMap 
+                                else {'dtype':self.Data[key].dtype,'originalName':key} 
+                                for key in self.Data.columns}
+        self.variableMap = {var.safeName:helper.reprToDict(var) for var in map(lambda name: columnMap(**self.variableMap[name]),self.variableMap.keys())}
 
 
     def applySafeNames(self):
@@ -143,9 +146,9 @@ class asciiHeader(genericLoggerFile):
 class TOB3(asciiHeader):
     sourceFile: str
     header: list = field(default_factory=lambda:{})
-    readData: bool = field(default=False,repr=False)
+    readData: bool = field(default=True,repr=False)
     Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
-    calcStats: bool = field(default_factory=False,repr=False)
+    calcStats: list = field(default_factory=lambda:[],repr=False)
 
     def __post_init__(self):
         with open(self.sourceFile,'rb') as self.fileObject:
@@ -153,14 +156,16 @@ class TOB3(asciiHeader):
             if self.readData:
                 self.Data, Timestamp = self.readFrames()
                 self.Data = pd.DataFrame(self.Data)
+                if self.Data.empty:
+                    return
                 self.Data.columns = [var for var in self.variableMap]
                 Timestamp = pd.to_datetime(Timestamp,unit='s')
                 self.Data.index=Timestamp.round(self.frequency)
                 self.Data.index.name = 'TIMESTAMP'
-                if self.calcStats:
+                if self.calcStats != []:
                     Agg = {}
                     for column in self.variableMap:
-                        Agg[column] = self.Data[column].agg(['mean','std','count'])
+                        Agg[column] = self.Data[column].agg(self.calcStats)
                     self.Data = pd.DataFrame(
                         index=[Timestamp[-1]],
                         data = {f"{col}_{agg}":val 

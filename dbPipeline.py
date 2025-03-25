@@ -126,9 +126,8 @@ class database:
         if sourceMap.sourcePath and os.path.isdir(sourceMap.sourcePath):
             for dir,_,files in os.walk(sourceMap.sourcePath):
                 fileList += [os.path.join(dir,f) for f in files if fnmatch.fnmatch(os.path.join(dir,f),sourceMap.wildcard) and os.path.join(dir,f) not in sourceInventory[sourceID]]
-                log(fileList)
         
-        log('make robust to kwarg update')
+        log('make robust to kwarg update',verbose=self.verbose)
         sourceInventory[sourceID] = sourceInventory[sourceID] | {f:copy.deepcopy(template) for f in fileList}
         
 
@@ -136,9 +135,6 @@ class database:
         if len(sourceFiles)>1 and siteInventory.sourceRecord.sourceID in sourceFiles:
             sourceFiles.pop(siteInventory.sourceRecord.sourceID)
         self.rawFileImport(siteID,measurementID,sourceInventory)
-        self.save(sourceInventory,fn)
-        self.save(self.siteInventory[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-
 
     def rawFileImport(self,siteID,measurementID,sourceInventory):
         Processor = {
@@ -157,10 +153,14 @@ class database:
                     source = method(sourceFile=file,siteID=siteID,measurementID=measurementID,verbose=False,**parserKwargs)   
                     if not source.Data.empty:
                         sourceFiles[file]['loaded'] = True
+                        log(f'Processing: {file}',fn=False,ln=False)
                         sourceInventory[sourceID][file]['parserKwargs'] = helper.reprToDict(source)
                         for year in source.Data.index.year.unique():
                             databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID,str(year)),year=year,Data=source.Data,variableMap=source.variableMap)
-    
+                    
+                        self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
+                        self.save(self.siteInventory[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+
 
 @dataclass(kw_only=True)
 class databaseFolder:
@@ -211,7 +211,6 @@ class databaseFolder:
         return(dataset)
 
     def writeYear(self):
-        log(self.path)
         for col in self.Data.columns:
             if not os.path.isdir(self.path): os.makedirs(self.path)
             fname = os.path.join(self.path,col)

@@ -1,12 +1,19 @@
 SCL:
-  # Flux:
-  #   wildcard: '*Flux*.dat'
-  #   parserKwargs:
-  #     timezone: UTC
-  #     readData: True
-  #     calcStats: True
+  Flux:
+    wildcard: '*Flux*.dat'
+    parserKwargs:
+      timezone: UTC
+      calcStats: ['mean']
+  Met:
+    wildcard: '*Met_Data*.dat'
+    parserKwargs:
+      timezone: UTC
+  Metadata:
+    wildcard: '*MetaData*.dat'
+    parserKwargs:
+      timezone: UTC
   SSM_Profile:
-    wildcard: '*SSM*.dat'
+    wildcard: '*SSM*.csv'
     parserKwargs:
       timezone: UTC
       variableMap:
