@@ -4,6 +4,7 @@ import struct
 import datetime
 import numpy as np
 import pandas as pd
+from collections import namedtuple
 import dateutil.parser as dateParse 
 from dataclasses import dataclass,field,fields
 import helperFunctions as helper
@@ -44,8 +45,8 @@ class columnMap:
 @dataclass(kw_only=True)
 class genericLoggerFile:
     # Important attributes to be associated with a generic logger file
-    siteID: str = None
-    measurementID: str = None
+    # siteID: str = None
+    # measurementID: str = None
     timezone: str = None
     fileType: str = None
     frequency: str = None
@@ -269,3 +270,18 @@ class HOBOcsv(genericLoggerFile):
         super().__post_init__()
         self.applySafeNames()
 
+def loadRawFile(source,fileType=None,verbose=False):
+    Processor = {
+        'HOBOcsv':HOBOcsv,
+        'TOB3':TOB3,
+    }
+    filePath,sourceInfo = source[0],source[1]
+    ID = os.path.split(filePath)[-1].split('.')[0]
+    out = {'filepath':filePath, 'sourceInfo':sourceInfo, 'variableMap':{}, 'DataFrame':pd.DataFrame()}
+    if not sourceInfo['loaded'] and fileType in Processor:
+        loadedFile = Processor[fileType](sourceFile=filePath,verbose=False,**sourceInfo['parserKwargs'])
+        sourceInfo['parserKwargs'] = helper.reprToDict(loadedFile)
+        out['sourceInfo']['loaded'] = True
+        out['variableMap'] = loadedFile.variableMap
+        out['DataFrame'] = loadedFile.Data
+    return(out)

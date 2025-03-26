@@ -4,6 +4,8 @@ import copy
 import fnmatch
 from pathlib import Path
 from dataclasses import dataclass,field
+from functools import partial
+from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
@@ -18,6 +20,7 @@ import importlib
 importlib.reload(siteCoordinates)
 importlib.reload(siteInventory)
 importlib.reload(rawDataFile)
+importlib.reload(rawDataFile)
 importlib.reload(helper)
 
 log = helper.log
@@ -30,6 +33,7 @@ class database:
     fillChar: str = '_'
     sepChar: str = '/'*2
     verbose: bool = False
+    enableParallel: bool = True
     siteIDs: list = field(default_factory=lambda:[])
     siteInventory: dict = field(default_factory=lambda:{})
     projectInfo: dict = field(default_factory=lambda:helper.loadDict(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml')))
@@ -134,6 +138,7 @@ class database:
         sourceFiles[sourceID] = helper.reprToDict(sourceMap)
         if len(sourceFiles)>1 and siteInventory.sourceRecord.sourceID in sourceFiles:
             sourceFiles.pop(siteInventory.sourceRecord.sourceID)
+        self.save(self.siteInventory[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
         self.rawFileImport(siteID,measurementID,sourceInventory)
 
     def rawFileImport(self,siteID,measurementID,sourceInventory):
@@ -148,71 +153,90 @@ class database:
         method = Processor[Measurement['fileType']]
         for sourceID, sourceFiles in sourceInventory.items():
             parserKwargs = Measurement['sourceFiles'][sourceID]['parserKwargs']
-            for file in sourceFiles:
-                if not sourceFiles[file]['loaded']:
-                    source = method(sourceFile=file,siteID=siteID,measurementID=measurementID,verbose=False,**parserKwargs)   
-                    if not source.Data.empty:
-                        sourceFiles[file]['loaded'] = True
-                        log(f'Processing: {file}',fn=False,ln=False)
-                        sourceInventory[sourceID][file]['parserKwargs'] = helper.reprToDict(source)
-                        for year in source.Data.index.year.unique():
-                            databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID,str(year)),year=year,Data=source.Data,variableMap=source.variableMap)
-                    
+            if len(sourceFiles)>3 and Measurement['fileType'] == 'TOB3' and self.enableParallel:
+                
+                np = min(os.cpu_count()-2,len(sourceFiles))
+                with Pool(processes=2) as pool:
+                    for result in pool.imap(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType']),sourceFiles.items()):
+                        if not result['DataFrame'].empty:
+                            databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'])
+                        sourceInventory[sourceID][result['filepath']] = result['sourceInfo']
                         self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
-                        self.save(self.siteInventory[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+                            
+            else:
+                for item in sourceFiles.items():
+                    result = rawDataFile.loadRawFile(item,fileType=Measurement['fileType'])
+                    if not result['DataFrame'].empty:
+                        databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'],verbose=self.verbose)
+                    sourceInventory[sourceID][result['filepath']] = result['sourceInfo']
+                    self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
+
 
 
 @dataclass(kw_only=True)
 class databaseFolder:
     POSIX_timestamp: dict = field(default_factory=lambda:{'dtype': 'float64','frequency': '30min','timezone': 'UTC','ignore':False,'variableDescription': 'the POSIX_timestamp is stored as a 64-bit floating point number representing the seconds elapsed since 1970-01-01 00:00 UTC time'})
     path: str
-    year: int
+    Years: list = None
     verbose: bool = True
-    Data: pd.DataFrame = field(default_factory=lambda:pd.DataFrame())
+    dataIn: pd.DataFrame = field(default_factory=lambda:pd.DataFrame())
+    dataOut: pd.DataFrame = field(default_factory=lambda:pd.DataFrame())
     variableMap: dict = field(default_factory=lambda:{})
 
     def __post_init__(self):
-        self.write = bool(self.variableMap) and not self.Data.empty
-        self.Data = self.Data.drop([col for col,val in self.variableMap.items() if val['ignore']],axis=1)
+        self.write = bool(self.variableMap) and not self.dataIn.empty
+        self.dataIn = self.dataIn.drop([col for col,val in self.variableMap.items() if val['ignore']],axis=1)
         self.variableMap = {key:values for key,values in self.variableMap.items() if not values['ignore']}
         self.variableMap = {'POSIX_timestamp':self.POSIX_timestamp} |self.variableMap
         
-        if os.path.isfile(os.path.join(self.path,'_variableMap.yml')) and os.path.exists(os.path.join(self.path,'POSIX_timestamp')):
-            self.Data = self.read()
-        else:
-            self.Data = self.emptyYear(self.year)
+        if self.Years is None:
+            if not self.dataIn.empty:
+                self.Years = list(self.dataIn.index.year.unique())
+            else:
+                helper.log('Error, define years to read')
+                return()
 
-        if self.write:
-            self.writeYear()
-        self.Data.index.name = 'UTC'
-        helper.saveDict(self.variableMap,os.path.join(self.path,'_variableMap.yml'))
+        elif type(self.Years) == int:
+            self.Years = [self.Years]
+        elif type(self.Years) == str:
+            self.Years = [int(self.Years)]
+
+        for year in self.Years:
+            if os.path.isfile(os.path.join(self.path,str(year),'_variableMap.yml')) and os.path.exists(os.path.join(self.path,str(year),'POSIX_timestamp')):
+                self.dataOut = pd.concat([self.dataOut,self.readYear(year)])
+            else:
+                self.dataOut = pd.concat([self.dataOut,self.emptyYear(year)])
+            if self.write:
+                self.writeYear(year)
+            self.dataOut.index.name = 'UTC'
+            helper.saveDict(self.variableMap,os.path.join(self.path,str(year),'_variableMap.yml'))
 
     def emptyYear(self,year):
         dataset = pd.DataFrame(index=pd.date_range(str(year),str(year+1),freq=self.POSIX_timestamp['frequency'],inclusive='right'))
         dataset['POSIX_timestamp'] = (dataset.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-        for col in self.Data.columns:
-            if col in dataset.columns:
-                dataset[col] = dataset[col].fillna(self.Data[col])
-            else:
-                dataset = dataset.join(self.Data[[col]])
+        for col in set(list(self.dataIn.columns)+list(dataset.columns)):
+            if col in dataset.columns and col in self.dataIn.columns:
+                dataset[col] = dataset[col].fillna(self.dataIn.loc[self.dataIn.index.year==year,col])
+            elif col in self.dataIn.columns:
+                dataset = dataset.join(self.dataIn.loc[self.dataIn.index.year==year,[col]])
         return(dataset)
 
-    def read(self):
-        vm = helper.loadDict(os.path.join(self.path,'_variableMap.yml'))
-        dataset = {f:np.fromfile(os.path.join(self.path,f),dtype=vm[f]['dtype']) for f in os.listdir(self.path) if not f.endswith('.yml')}
+    def readYear(self,year):
+        vm = helper.loadDict(os.path.join(self.path,str(year),'_variableMap.yml'))
+        dataset = {f:np.fromfile(os.path.join(self.path,str(year),f),dtype=vm[f]['dtype']) for f in os.listdir(os.path.join(self.path,str(year))) if not f.endswith('.yml')}
         self.variableMap = vm|self.variableMap
         dataset = pd.DataFrame(data = dataset)
         dataset.index=pd.to_datetime(dataset['POSIX_timestamp'],unit='s')
-        for col in self.Data.columns:
-            if col in dataset.columns:
-                dataset[col] = dataset[col].fillna(self.Data[col])
-            else:
-                dataset = dataset.join(self.Data[[col]])
+        for col in set(list(self.dataIn.columns)+list(dataset.columns)):
+            if col in dataset.columns and col in self.dataIn.columns:
+                dataset[col] = dataset[col].fillna(self.dataIn.loc[self.dataIn.index.year==year,col])
+            elif col in self.dataIn.columns:
+                dataset = dataset.join(self.dataIn.loc[self.dataIn.index.year==year,[col]])
         return(dataset)
 
-    def writeYear(self):
-        for col in self.Data.columns:
-            if not os.path.isdir(self.path): os.makedirs(self.path)
-            fname = os.path.join(self.path,col)
+    def writeYear(self,year):
+        for col in self.dataOut.columns:
+            if not os.path.isdir(os.path.join(self.path,str(year))): os.makedirs(os.path.join(self.path,str(year)))
+            fname = os.path.join(self.path,str(year),col)
             # log(f'Writing: {fname}',ln=False,verbose=self.verbose)
-            self.Data[col].astype(self.variableMap[col]['dtype']).values.tofile(fname)
+            self.dataOut.loc[self.dataOut.index.year==year,col].astype(self.variableMap[col]['dtype']).values.tofile(fname)
