@@ -13,13 +13,12 @@ import geopandas as gpd
 
 import siteCoordinates
 import helperFunctions as helper
-import rawDataFile
 import siteInventory
+import rawDataFile
 
 import importlib
 importlib.reload(siteCoordinates)
 importlib.reload(siteInventory)
-importlib.reload(rawDataFile)
 importlib.reload(rawDataFile)
 importlib.reload(helper)
 
@@ -142,15 +141,15 @@ class database:
         self.rawFileImport(siteID,measurementID,sourceInventory)
 
     def rawFileImport(self,siteID,measurementID,sourceInventory):
-        Processor = {
-            'HOBOcsv':rawDataFile.HOBOcsv,
-            'TOB3':rawDataFile.TOB3,
-        }
+        # Processor = {
+        #     'HOBOcsv':HOBOcsv,
+        #     'TOB3':TOB3,
+        # }
         Measurement = self.siteInventory[siteID]['Measurements'][measurementID]
-        if Measurement['fileType'] not in Processor:
-            log(f"Add functionality for {Measurement['fileType']}")
-            return
-        method = Processor[Measurement['fileType']]
+        # if Measurement['fileType'] not in Processor:
+        #     log(f"Add functionality for {Measurement['fileType']}")
+        #     return
+        # method = Processor[Measurement['fileType']]
         for sourceID, sourceFiles in sourceInventory.items():
             parserKwargs = Measurement['sourceFiles'][sourceID]['parserKwargs']
             if len(sourceFiles)>3 and Measurement['fileType'] == 'TOB3' and self.enableParallel:
