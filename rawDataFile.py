@@ -50,6 +50,7 @@ class genericLoggerFile:
     timezone: str = None
     fileType: str = None
     frequency: str = None
+    fileTimestamp: str = field(default='%Y_%m_%d_%H%M',repr=False)
     variableMap: dict = field(default_factory=lambda:{})
     Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
     verbose: bool = field(default=True,repr=False)
@@ -61,6 +62,8 @@ class genericLoggerFile:
                                 else {'dtype':self.Data[key].dtype,'originalName':key} 
                                 for key in self.Data.columns}
         self.variableMap = {var.safeName:helper.reprToDict(var) for var in map(lambda name: columnMap(**self.variableMap[name]),self.variableMap.keys())}
+
+        self.fileTimestamp = self.fileTimestamp.strftime(self.__dataclass_fields__['fileTimestamp'].default)
 
 
     def applySafeNames(self):
@@ -77,7 +80,6 @@ class asciiHeader(genericLoggerFile):
     LoggerModel: str = None
     SerialNo: str = None
     program: str = None
-    fileTimestamp: str = None
     frequency: str = None
     Table: str = None
     variableMap: dict = field(default_factory=lambda:{})
@@ -124,7 +126,6 @@ class asciiHeader(genericLoggerFile):
                                             )}
             f = os.path.split(self.fileObject.name)[-1]
             self.fileTimestamp = pd.to_datetime(datetime.datetime.strptime(re.search(r'([0-9]{4}\_[0-9]{2}\_[0-9]{2}\_[0-9]{4})', f.rsplit('.',1)[0]).group(0),'%Y_%m_%d_%H%M'))
-        self.fileTimestamp = self.fileTimestamp.strftime('%Y-%m-%dT%H:%M:%S')
                 
     def parseLine(self,line):
         return(line.decode('ascii').strip().replace('"','').split(','))
@@ -212,7 +213,10 @@ class TOB3(asciiHeader):
                     readFrame = False
             else:
                 readFrame = False
-        log('Frames ',i,verbose=self.verbose)
+        log(f'Frames {i}',verbose=self.verbose)
+        # tmp = data.T
+        # for i in range(tmp.shape[0]):
+        #     print(tmp[i])
         if i > 0:
             return (data,np.array(Timestamp).flatten())
         else:
@@ -247,7 +251,6 @@ class HOBOcsv(genericLoggerFile):
     sourceFile: str = field(repr=False)
     verbose: bool = field(default=True,repr=False)
     timestampName: str = field(default="Date Time",repr=False)
-    fileTimestamp: str = field(default=None,repr=False)
     varRepMap: dict = field(default_factory=dict)
     yearfirst: bool = field(default=True,repr=False)
     statusCols: list = field(default_factory=lambda:['Host Connected', 'Stopped', 'End Of File'],repr=False)
@@ -265,7 +268,8 @@ class HOBOcsv(genericLoggerFile):
         self.statusCols = self.Data.columns[self.Data.columns.str.contains('|'.join(self.statusCols))].values
         self.Data[self.statusCols] = self.Data[self.statusCols].ffill(limit=1)
         keep = pd.isna(self.Data[self.statusCols]).all(axis=1)
-        self.fileTimestamp = (self.Data.index[(self.Data[self.statusCols].isna()==False).any(axis=1).values].strftime('%Y-%m-%dT%H:%M:%S')).values[-1]
+        log('fix this')
+        self.fileTimestamp = self.Data.index[(self.Data[self.statusCols].isna()==False).any(axis=1).values].values[-1]
         self.Data = self.Data.loc[keep].copy()
         super().__post_init__()
         self.applySafeNames()
@@ -285,3 +289,9 @@ def loadRawFile(source,fileType=None,verbose=False):
         out['variableMap'] = loadedFile.variableMap
         out['DataFrame'] = loadedFile.Data
     return(out)
+
+# for debuging:
+
+if __name__ == '__main__':
+    log('debug: example_data/20240912/Flux_Data2629.dat')
+    TOB3(sourceFile=r'example_data\20240912\Flux_Data2629.dat')

@@ -115,7 +115,9 @@ def loadDict(file,verbose=False,safemode=False):
 
 def saveDict(obj,outputPath,sort_keys=False,indent=None):
     # save a dict (obj) to a file (outputPath) in either .json or .yml format
-    if not os.path.isdir(os.path.split(outputPath)[0]):
+    if os.path.split(outputPath)[0] == '':
+        pass
+    elif not os.path.isdir(os.path.split(outputPath)[0]):
         os.makedirs(os.path.split(outputPath)[0])
     with open(outputPath,'w') as file:
         if outputPath.endswith('.yml'):
