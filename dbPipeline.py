@@ -187,7 +187,6 @@ class databaseFolder:
         self.dataIn = self.dataIn.drop([col for col,val in self.variableMap.items() if val['ignore']],axis=1)
         self.variableMap = {key:values for key,values in self.variableMap.items() if not values['ignore']}
         self.variableMap = {'POSIX_timestamp':self.POSIX_timestamp} |self.variableMap
-        
         if self.Years is None:
             if not self.dataIn.empty:
                 self.Years = list(self.dataIn.index.year.unique())
