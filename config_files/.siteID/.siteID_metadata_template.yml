@@ -1,0 +1,24 @@
+siteID: .siteID
+description: This is a template for defining site-level metadata
+Name: null
+PI: null
+startDate: null
+stopDate: null
+landCoverType: null
+latitude: null
+longitude: null
+Measurements:
+  .measurementID:
+    measurementID: .measurementID
+    description: null
+    fileType: null
+    sampleFrequency: null
+    latitude: 0
+    longitude: 0
+    startDate: null
+    stopDate: null
+    sourceFiles:
+      sourcePath\*wildcard*:
+        sourcePath: sourcePath
+        wildcard: '*wildcard*'
+        parserKwargs: {}

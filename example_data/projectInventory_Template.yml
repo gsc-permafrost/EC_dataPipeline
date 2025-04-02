@@ -55,16 +55,16 @@ SCL:
       longitude: 'W135 15.1350'
       startDate: 2024-07-20
       stopDate: null
-ILL:
-  siteID: ILL
-  Name: Illisarvik
-  PI: Chris Burn
-  description: Eddy Covariance site in an artificially drained thermokarst lake basin on Richard's Island
-  stopDate: 2016-08-07
-  landCoverType: Low Shrub/Meadow
-  latitude: N69 28 47.5
-  longitude: W134 35 18.7
-  startDate: 2016-07-08
+# ILL:
+#   siteID: ILL
+#   Name: Illisarvik
+#   PI: Chris Burn
+#   description: Eddy Covariance site in an artificially drained thermokarst lake basin on Richard's Island
+#   stopDate: 2016-08-07
+#   landCoverType: Low Shrub/Meadow
+#   latitude: N69 28 47.5
+#   longitude: W134 35 18.7
+#   startDate: 2016-07-08
 FIL:
   siteID: FIL
   Name: Fish Island
@@ -75,10 +75,11 @@ FIL:
   latitude: N69 22 20.20
   longitude: W134 52 51.92
   startDate: 2017-06-21
-  samplePoints:
-    RIM:
-      pointID: RIM
-      description: Polygon rim
-    CNT:
-      pointID: CNT
-      description: Polygon centre
+
+  # Measurements:
+  #   RIM:
+  #     measurementID: RIM
+  #     description: Polygon rim
+  #   CNT:
+  #     measurementID: CNT
+  #     description: Polygon centre

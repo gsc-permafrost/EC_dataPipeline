@@ -11,19 +11,21 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 
-import siteCoordinates
-import helperFunctions as helper
-import siteInventory
 import rawDataFile
 
-import importlib
-importlib.reload(siteCoordinates)
-importlib.reload(siteInventory)
-importlib.reload(rawDataFile)
-importlib.reload(helper)
+from siteManagement.siteInventory import siteInventory
+from siteManagement.siteInventory import sourceRecord
+from parseFiles.helperFunctions.log import log
+from parseFiles.helperFunctions.loadDict import loadDict
+from parseFiles.helperFunctions.saveDict import saveDict
+from parseFiles.helperFunctions.reprToDict import reprToDict
 
-log = helper.log
-now = helper.now
+import datetime
+import yaml
+
+
+def now(fmt='%Y-%m-%dT%H:%M:%S.%f',prefix='',suffix=''):
+    return(f"{prefix}{datetime.datetime.now().strftime(fmt)}{suffix}")
 
 @dataclass(kw_only=True)
 class database:
@@ -34,9 +36,8 @@ class database:
     verbose: bool = False
     enableParallel: bool = True
     siteIDs: list = field(default_factory=lambda:[])
-    siteInventory: dict = field(default_factory=lambda:{})
-    projectInfo: dict = field(default_factory=lambda:helper.loadDict(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml')))
-    mapTemplate: str = field(default_factory=lambda:Path(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','MapTemplate.html')).read_text())
+    Sites: dict = field(default_factory=lambda:{})
+    projectInfo: dict = field(default_factory=lambda:yaml.safe_load(Path(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml')).read_text()))
  
     def __post_init__(self):
         if self.projectPath:
@@ -45,12 +46,15 @@ class database:
             elif not os.path.isfile(os.path.join(self.projectPath,'projectInfo.yml')):
                 sys.exit('Non-empty, non-project directory provided')
             else:
-                self.projectInfo = helper.loadDict(os.path.join(self.projectPath,'projectInfo.yml'))
+                self.projectInfo = loadDict(os.path.join(self.projectPath,'projectInfo.yml'))
             if type(self.siteIDs) != list:
                 self.siteIDs = [self.siteIDs]
             elif self.siteIDs == []:
                 self.siteIDs = [siteID for siteID in self.projectInfo['Sites'] if not siteID.startswith('.')]
+            if len(self.siteIDs):
                 self.projectInventory()
+            else:
+                self.projectInventory(newSites={'template':{}})
             
     def makeNewProject(self):
         # make a new database
@@ -59,72 +63,69 @@ class database:
         for d in self.projectInfo:
             if not d.startswith('.'):
                 os.makedirs(os.path.join(self.projectPath,d))
-        self.projectInventory()
+        # self.projectInventory()
         
     def save(self,dictObj=None,filename=None):
         # Saves projectInfo.yml and any other relevant metadata files
         if self.projectPath:
-            self.projectInfo['.dateModified'] = helper.now()
-            helper.saveDict(self.projectInfo,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
+            self.projectInfo['.dateModified'] = now()
+            saveDict(self.projectInfo,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
             if filename:
                 log(('Saving: ',filename),verbose=self.verbose)
-                helper.saveDict(dictObj,filename)
+                saveDict(dictObj,filename)
 
     def projectInventory(self,newSites={},fileSearch=None):
         # Read existing sites
         for siteID in self.siteIDs:
-            record = helper.loadDict(os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-            self.siteInventory[siteID] = helper.dictToDataclass(siteInventory.siteRecord,record,constants={'dpath':os.path.join(self.projectPath,'Sites')})
+            self.Sites = loadDict(os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
         # If given a file template for new sites
         if type(newSites) is str and os.path.isfile(newSites):
-            newSites = helper.loadDict(newSites)
+            newSites = siteInventory(Sites=newSites).Sites
         # otherwise check for manual additions
         elif newSites == {}:
             additions = [siteID for siteID in os.listdir(os.path.join(self.projectPath,'Sites'))
                         if '.' not in siteID and siteID not in self.siteIDs]
             if additions != []:
-                newSites = {new:helper.loadDict(os.path.join(self.projectPath,'Sites',new,f"{new}_metadata.yml")) for new in additions}
-        # If there are any new sits, process them        
-        if newSites != {}:
-            newSites = helper.dictToDataclass(siteInventory.siteRecord,newSites,ID=['siteID'],constants={'dpath':os.path.join(self.projectPath,'Sites')})
-            self.siteInventory = helper.updateDict(self.siteInventory,newSites)
-        # If no sites exist yet, create a template
-        if self.siteInventory == {}:
-            template = {k:v for k,v in siteInventory.siteRecord.__dict__.items() if k[0:2] != '__'}
-            self.siteInventory = helper.dictToDataclass(siteInventory.siteRecord,template,ID=['siteID'],constants={'dpath':os.path.join(self.projectPath,'Sites'),'template':True},debug=True)
+                newSites = {new:siteInventory(Sites=os.path.join(self.projectPath,'Sites',new,f"{new}_metadata.yml")).Sites for new in additions}
+        self.Sites = self.Sites | newSites
+        if len(self.Sites)>1 and '.siteID' in self.Sites:
+            self.Sites.pop('.siteID')
+        self.Sites = siteInventory(Sites=self.Sites)
+        self.spatialInventory = self.Sites.spatialInventory
+        self.webMap = self.Sites.mapTemplate
+        self.Sites = {siteID:self.Sites.Sites[siteID] for siteID in self.Sites.Sites}
 
         # save the inventory and make a webmap of sites
         siteDF = pd.DataFrame()
-        for siteID,values in self.siteInventory.items():
-            self.projectInfo['Sites'][siteID] = {'Name':values['Name'],
-                                                 'description':values['description'],
-                                                 'latitude':values['latitude'],
-                                                 'longitude':values['longitude'],
-            }
-            self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-                
-            if not siteID.startswith('.'):
-                siteDF = pd.concat([siteDF,pd.DataFrame(data = self.projectInfo['Sites'][siteID], index=[siteID])])
-        if not siteDF.empty:
-            Site_WGS = gpd.GeoDataFrame(siteDF, geometry=gpd.points_from_xy(siteDF.longitude, siteDF.latitude), crs="EPSG:4326")
-            self.mapTemplate = self.mapTemplate.replace('fieldSitesJson',Site_WGS.to_json())
+        for siteID,values in self.Sites.items():
+            if siteID != '.siteID':
+                self.projectInfo['Sites'][siteID] = {
+                    'Name':values['Name'],
+                    'description':values['description'],
+                    'latitude':values['latitude'],
+                    'longitude':values['longitude'],
+                }
+                self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+            else:
+                self.save(values,os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files',siteID,f"{siteID}_metadata_template.yml"))
+
+        if '.siteID' not in self.Sites:
             with open(os.path.join(self.projectPath,'fieldSiteMap.html'),'w+') as out:
-                out.write(self.mapTemplate)
+                out.write(self.webMap)
 
     def rawFileSearch(self,siteID,measurementID,sourcePath=None,wildcard='*',parserKwargs={}):
         if sourcePath and os.path.isdir(sourcePath):
             sourceID = os.path.join(os.path.abspath(sourcePath),wildcard)
-        sourceFiles = self.siteInventory[siteID]['Measurements'][measurementID]['sourceFiles']
+        sourceFiles = self.Sites[siteID]['Measurements'][measurementID]['sourceFiles']
         kwargs = {'sourcePath':sourcePath,'wildcard':wildcard,'parserKwargs':parserKwargs}
         if sourceID in sourceFiles and parserKwargs=={}:
             kwargs = sourceFiles[sourceID]
         fn = os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json')
         template={'loaded':False,'parserKwargs':parserKwargs}
-        sourceInventory = helper.loadDict(fn)
+        sourceInventory = loadDict(fn)
         if sourceID not in sourceInventory:
             sourceInventory[sourceID] = {}
-        sourceMap = siteInventory.sourceRecord(**kwargs)
-
+        sourceMap = sourceRecord(**kwargs)
         fileList = []
         if sourceMap.sourcePath and os.path.isdir(sourceMap.sourcePath):
             for dir,_,files in os.walk(sourceMap.sourcePath):
@@ -132,24 +133,16 @@ class database:
         
         log('make robust to kwarg update',verbose=self.verbose)
         sourceInventory[sourceID] = sourceInventory[sourceID] | {f:copy.deepcopy(template) for f in fileList}
-        
 
-        sourceFiles[sourceID] = helper.reprToDict(sourceMap)
-        if len(sourceFiles)>1 and siteInventory.sourceRecord.sourceID in sourceFiles:
-            sourceFiles.pop(siteInventory.sourceRecord.sourceID)
-        self.save(self.siteInventory[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+        sourceFiles[sourceID] = reprToDict(sourceMap)
+        if len(sourceFiles)>1 and sourceRecord().sourceID in sourceFiles:
+            sourceFiles.pop(sourceRecord().sourceID)
+
+        self.save(self.Sites[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
         self.rawFileImport(siteID,measurementID,sourceInventory)
 
     def rawFileImport(self,siteID,measurementID,sourceInventory):
-        # Processor = {
-        #     'HOBOcsv':HOBOcsv,
-        #     'TOB3':TOB3,
-        # }
-        Measurement = self.siteInventory[siteID]['Measurements'][measurementID]
-        # if Measurement['fileType'] not in Processor:
-        #     log(f"Add functionality for {Measurement['fileType']}")
-        #     return
-        # method = Processor[Measurement['fileType']]
+        Measurement = self.Sites[siteID]['Measurements'][measurementID]
         for sourceID, sourceFiles in sourceInventory.items():
             parserKwargs = Measurement['sourceFiles'][sourceID]['parserKwargs']
             if len(sourceFiles)>3 and Measurement['fileType'] == 'TOB3' and self.enableParallel:
@@ -191,7 +184,7 @@ class databaseFolder:
             if not self.dataIn.empty:
                 self.Years = list(self.dataIn.index.year.unique())
             else:
-                helper.log('Error, define years to read')
+                log('Error, define years to read')
                 return()
 
         elif type(self.Years) == int:
@@ -207,7 +200,7 @@ class databaseFolder:
             if self.write:
                 self.writeYear(year)
             self.dataOut.index.name = 'UTC'
-            helper.saveDict(self.variableMap,os.path.join(self.path,str(year),'_variableMap.yml'))
+            saveDict(self.variableMap,os.path.join(self.path,str(year),'_variableMap.yml'))
 
     def emptyYear(self,year):
         dataset = pd.DataFrame(index=pd.date_range(str(year),str(year+1),freq=self.POSIX_timestamp['frequency'],inclusive='right'))
@@ -220,7 +213,7 @@ class databaseFolder:
         return(dataset)
 
     def readYear(self,year):
-        vm = helper.loadDict(os.path.join(self.path,str(year),'_variableMap.yml'))
+        vm = loadDict(os.path.join(self.path,str(year),'_variableMap.yml'))
         dataset = {f:np.fromfile(os.path.join(self.path,str(year),f),dtype=vm[f]['dtype']) for f in os.listdir(os.path.join(self.path,str(year))) if not f.endswith('.yml')}
         self.variableMap = vm|self.variableMap
         dataset = pd.DataFrame(data = dataset)

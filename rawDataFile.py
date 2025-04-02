@@ -24,7 +24,6 @@ def loadRawFile(source,fileType=None,verbose=False):
         out['sourceInfo']['loaded'] = True
         out['variableMap'] = loadedFile.variableMap
         out['DataFrame'] = loadedFile.DataFrame
-        print(loadedFile.DataFrame)
     return(out)
 
 # for debuging:
