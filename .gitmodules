@@ -1,6 +1,3 @@
 [submodule "parseFiles"]
 	path = parseFiles
 	url = https://github.com/gsc-permafrost/parseFiles
-[submodule "siteManagement"]
-	path = siteManagement
-	url = https://github.com/gsc-permafrost/siteManagement

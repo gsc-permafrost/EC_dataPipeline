@@ -13,12 +13,12 @@ import geopandas as gpd
 
 import rawDataFile
 
-from siteManagement.siteInventory import siteInventory
-from siteManagement.siteInventory import sourceRecord
+from siteInventory import siteInventory
+from siteInventory import sourceRecord
 from parseFiles.helperFunctions.log import log
 from parseFiles.helperFunctions.loadDict import loadDict
 from parseFiles.helperFunctions.saveDict import saveDict
-from parseFiles.helperFunctions.reprToDict import reprToDict
+from parseFiles.helperFunctions.asdict_repr import asdict_repr
 
 import datetime
 import yaml
@@ -63,7 +63,6 @@ class database:
         for d in self.projectInfo:
             if not d.startswith('.'):
                 os.makedirs(os.path.join(self.projectPath,d))
-        # self.projectInventory()
         
     def save(self,dictObj=None,filename=None):
         # Saves projectInfo.yml and any other relevant metadata files
@@ -71,7 +70,7 @@ class database:
             self.projectInfo['.dateModified'] = now()
             saveDict(self.projectInfo,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
             if filename:
-                log(('Saving: ',filename),verbose=self.verbose)
+                log(('Saving: ',filename),ln=False,verbose=self.verbose)
                 saveDict(dictObj,filename)
 
     def projectInventory(self,newSites={},fileSearch=None):
@@ -98,69 +97,55 @@ class database:
         # save the inventory and make a webmap of sites
         siteDF = pd.DataFrame()
         for siteID,values in self.Sites.items():
-            if siteID != '.siteID':
-                self.projectInfo['Sites'][siteID] = {
-                    'Name':values['Name'],
-                    'description':values['description'],
-                    'latitude':values['latitude'],
-                    'longitude':values['longitude'],
-                }
-                self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-            else:
-                self.save(values,os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files',siteID,f"{siteID}_metadata_template.yml"))
+            # if siteID != '.siteID':
+            self.projectInfo['Sites'][siteID] = {
+                'Name':values['Name'],
+                'description':values['description'],
+                'latitude':values['latitude'],
+                'longitude':values['longitude'],
+            }
+            self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+            for measurementID in values['Measurements']:
+                self.rawFileSearch(siteID,measurementID)
 
-        if '.siteID' not in self.Sites:
-            with open(os.path.join(self.projectPath,'fieldSiteMap.html'),'w+') as out:
-                out.write(self.webMap)
+        with open(os.path.join(self.projectPath,'fieldSiteMap.html'),'w+') as out:
+            out.write(self.webMap)
 
-    def rawFileSearch(self,siteID,measurementID,sourcePath=None,wildcard='*',parserKwargs={}):
-        if sourcePath and os.path.isdir(sourcePath):
-            sourceID = os.path.join(os.path.abspath(sourcePath),wildcard)
-        sourceFiles = self.Sites[siteID]['Measurements'][measurementID]['sourceFiles']
-        kwargs = {'sourcePath':sourcePath,'wildcard':wildcard,'parserKwargs':parserKwargs}
-        if sourceID in sourceFiles and parserKwargs=={}:
-            kwargs = sourceFiles[sourceID]
-        fn = os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json')
-        template={'loaded':False,'parserKwargs':parserKwargs}
-        sourceInventory = loadDict(fn)
-        if sourceID not in sourceInventory:
-            sourceInventory[sourceID] = {}
-        sourceMap = sourceRecord(**kwargs)
-        fileList = []
-        if sourceMap.sourcePath and os.path.isdir(sourceMap.sourcePath):
-            for dir,_,files in os.walk(sourceMap.sourcePath):
-                fileList += [os.path.join(dir,f) for f in files if fnmatch.fnmatch(os.path.join(dir,f),sourceMap.wildcard) and os.path.join(dir,f) not in sourceInventory[sourceID]]
-        
-        log('make robust to kwarg update',verbose=self.verbose)
-        sourceInventory[sourceID] = sourceInventory[sourceID] | {f:copy.deepcopy(template) for f in fileList}
+    def rawFileSearch(self,siteID,measurementID,kwargs={}):
+        soureFiles_alias = self.Sites[siteID]['Measurements'][measurementID]['sourceFiles']
+        sourceInventory = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'),template={sourceRecord.matchPattern:asdict_repr(sourceRecord(),repr=None)},verbose=self.verbose)
+        if 'matchPattern' in kwargs and kwargs['matchPattern'] not in sourceInventory:
+            sourceInventory[kwargs['matchPattern']] = kwargs
+        for result in map(lambda values: sourceRecord(**values),sourceInventory.values()):
+            result.__find__()
+            sourceInventory[result.matchPattern] = asdict_repr(result,repr=None)
+            soureFiles_alias[result.matchPattern] = asdict_repr(result)
+        if len(soureFiles_alias)>1 and sourceRecord.matchPattern in soureFiles_alias:
+            soureFiles_alias.pop(sourceRecord.matchPattern)
+            sourceInventory.pop(sourceRecord.matchPattern)
 
-        sourceFiles[sourceID] = reprToDict(sourceMap)
-        if len(sourceFiles)>1 and sourceRecord().sourceID in sourceFiles:
-            sourceFiles.pop(sourceRecord().sourceID)
-
-        self.save(self.Sites[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
         self.rawFileImport(siteID,measurementID,sourceInventory)
+        self.save(self.Sites[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+        self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
 
     def rawFileImport(self,siteID,measurementID,sourceInventory):
         Measurement = self.Sites[siteID]['Measurements'][measurementID]
-        for sourceID, sourceFiles in sourceInventory.items():
-            parserKwargs = Measurement['sourceFiles'][sourceID]['parserKwargs']
+        for matchPattern, sourceFiles in sourceInventory.items():
             if len(sourceFiles)>3 and Measurement['fileType'] == 'TOB3' and self.enableParallel:
                 
-                np = min(os.cpu_count()-2,len(sourceFiles))
-                with Pool(processes=2) as pool:
-                    for result in pool.imap(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType']),sourceFiles.items()):
+                nproc = min(os.cpu_count()-2,len(sourceFiles))
+                with Pool(processes=nproc) as pool:
+                    for result in pool.imap(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType'],parserSettings=sourceFiles['parserSettings']),sourceFiles['fileList'].items()):
                         if not result['DataFrame'].empty:
                             databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'])
-                        sourceInventory[sourceID][result['filepath']] = result['sourceInfo']
+                        sourceInventory[matchPattern][result['filepath']] = result['sourceInfo']
                         self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
                             
             else:
-                for item in sourceFiles.items():
-                    result = rawDataFile.loadRawFile(item,fileType=Measurement['fileType'])
+                for result in map(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType'],parserSettings=sourceFiles['parserSettings']),sourceFiles['fileList'].items()):
                     if not result['DataFrame'].empty:
                         databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'],verbose=self.verbose)
-                    sourceInventory[sourceID][result['filepath']] = result['sourceInfo']
+                    sourceFiles['fileList'][result['filepath']] = result['sourceInfo']
                     self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
 
 

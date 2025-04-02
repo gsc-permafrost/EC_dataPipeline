@@ -1,20 +1,24 @@
 SCL:
   Flux:
-    wildcard: '*Flux*.dat'
-    parserKwargs:
+    matchPattern: '*Flux*.dat'
+    rootPath: 'example_data'
+    parserSettings:
       timezone: UTC
       calcStats: ['mean']
   Met:
-    wildcard: '*Met_Data*.dat'
-    parserKwargs:
+    matchPattern: '*Met_Data*.dat'
+    rootPath: 'example_data'
+    parserSettings:
       timezone: UTC
   Metadata:
-    wildcard: '*MetaData*.dat'
-    parserKwargs:
+    matchPattern: '*MetaData*.dat'
+    rootPath: 'example_data'
+    parserSettings:
       timezone: UTC
   SSM_Profile:
-    wildcard: '*SSM*.csv'
-    parserKwargs:
+    matchPattern: '*SSM*.csv'
+    rootPath: 'example_data'
+    parserSettings:
       timezone: UTC
       variableMap:
         "Temp, \xB0C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 5)":
@@ -30,8 +34,9 @@ SCL:
             safeName: TS_4_1_1
             unit: deg C
   WSM_Profile:
-    wildcard: '*WSM*.csv'
-    parserKwargs:
+    matchPattern: '*WSM*.csv'
+    rootPath: 'example_data'
+    parserSettings:
       timezone: UTC
       variableMap:
         "Temp, \xB0C (LGR S/N: 20750527, SEN S/N: 20750527, LBL: 5)":

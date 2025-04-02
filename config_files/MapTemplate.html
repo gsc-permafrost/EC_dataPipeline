@@ -106,18 +106,16 @@
 </head>
 
 <body>
-<!-- <nav id="layer_menu"></nav> -->
 <div id="map"></div>
 <div class="action_menu"> 
-    <button id="readme" class="btn">ReadMe</button>
+    <button id="readme" class="btn">Read Me</button>
 </div>
 
-<!-- <button id="zoomto" class="btn-control">Zoom to Footprint</button> -->
-<!-- <div id="map"></div> -->
+<button id="zoomto" class="btn-control">Zoom to sites</button>
 <script>
     
     document.getElementById('readme').addEventListener('click', () => {
-            window.open('https://github.com/June-Skeeter');
+            window.open('https://github.com/gsc-permafrost/siteInventory');
         });
 
     const FFP_Contour_Intervals = [];
@@ -176,44 +174,7 @@
             'type': 'geojson',
             'data': fieldSites
         });
-
-
-        // // Source_Template_Start
-        // map.addSource('FFP_Contour_Levels', {
-        //     'type': 'geojson',
-        //     'data': FFP_Contour_Levels
-        // });
-        // // Source_Template_End
-
-        // // Style_Template_Start
-        // map.addLayer({
-        //     'id': 'FFP_Contour_Levels',
-        //     'type': 'fill',
-        //     'source': 'FFP_Contour_Levels',
-        //     'layout': {
-        //         'visibility':'none'
-        //     },
-        //     'paint': {
-        //         'fill-color': 'Fill_Color',
-        //         'fill-opacity': 0.15
-        //         }
-        //     });
-        // // Add a black outline around the polygon.
-        // map.addLayer({
-        //     'id': 'FFP_Contour_Levels_outline',
-        //     'type': 'line',
-        //     'source': 'FFP_Contour_Levels',
-        //     'layout': {
-        //         'visibility':'none'
-        //     },
-        //     'paint': {
-        //         'line-color': '#000',
-        //         'line-width': 3
-        //         }
-        //     });
-        // // Style_Template_End
-
-        
+       
         map.addLayer({'id': 'Site_Name',
                 'type': 'circle',
                 'source': 'Site_Name',
@@ -229,64 +190,8 @@
                     "circle-stroke-color": 'black'
                     },
                 });
-
     });
 
-
-    
-    
-    // map.on('idle', () => {
-    //     // Set up the corresponding toggle button for each layer.
-    //     for (const id of FFP_Contour_Intervals) {
-    //     // Skip layers that already have a button set up.
-    //         if (document.getElementById(id) || id == 'Site_Name') {
-    //         continue;
-    //         }
-    //             // Create a link.
-    //             const link = document.createElement('a');
-    //             const initial_visibility = map.getLayoutProperty(
-    //                     id,
-    //                     'visibility'
-    //                     );
-    //             if (initial_visibility=='visible'){
-    //                 link.className = 'active';
-    //             }
-    //             else{
-    //                 link.className = '';
-    //             };
-    //             link.id = id;
-    //             link.href = '#';
-    //             link.textContent = id;
-    //             // Show or hide layer when the toggle is clicked.
-    //             link.onclick = function (e) {
-    //                 const clickedLayer = this.textContent;
-    //                 e.preventDefault();
-    //                 e.stopPropagation();    
-    //                 const visibility = map.getLayoutProperty(
-    //                     clickedLayer,
-    //                     'visibility'
-    //                     );
-                
-    //                 // Toggle layer visibility by changing the layout object's visibility property.
-    //                 if (visibility === 'visible') {
-    //                     map.setLayoutProperty(clickedLayer, 'visibility', 'none');
-    //                     // if (clickedLayer === 'BBS'){
-    //                     map.setLayoutProperty(clickedLayer+'_outline', 'visibility', 'none');
-    //                     // };
-    //                     this.className = '';
-    //                     } 
-    //                 else {
-    //                     map.setLayoutProperty(clickedLayer,'visibility','visible');
-    //                     map.setLayoutProperty(clickedLayer+'_outline', 'visibility', 'visible');
-    //                     this.className = 'active';
-    //                 }
-    //             };
-
-    //         const layers = document.getElementById('layer_menu');
-    //         layers.appendChild(link);
-    //         };
-    //     }  
-    // );
 
     map.on('click', 'Site_Name', (e) => {
             // Copy coordinates array.
@@ -309,9 +214,8 @@
         });
 
         
-    let bbox = turf.extent(turf.buffer(fieldSites,.01));
-    
-    
+    let bbox = turf.extent(turf.buffer(fieldSites,.005));
+        
     // fit zom to the bounding box of whichever layers are loaded
     function fit() {
         map.fitBounds(bbox, {maxZoom: 15});
@@ -321,10 +225,10 @@
 
     map.addControl(new mapboxgl.ScaleControl({position: 'bottom-right'}));
     
-    // // Call fit when clicking the zoomto button
-    // document.getElementById('zoomto').addEventListener('click', () => {
-    //     fit()
-    // });
+    // Call fit when clicking the zoomto button
+    document.getElementById('zoomto').addEventListener('click', () => {
+        fit()
+    });
 </script>
 
 </body>
