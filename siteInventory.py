@@ -124,7 +124,6 @@ class siteInventory:
     spatialInventory: dict = field(default_factory=lambda:{})
     mapTemplate: str = field(default_factory=lambda:Path(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','MapTemplate.html')).read_text())
 
-
     def __post_init__(self):
         if type(self.Sites) is str and os.path.isfile(self.Sites):
             with open(self.Sites) as f:

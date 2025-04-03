@@ -76,7 +76,8 @@ class database:
     def projectInventory(self,newSites={},fileSearch=None):
         # Read existing sites
         for siteID in self.siteIDs:
-            self.Sites = loadDict(os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+            self.Sites[siteID] = loadDict(os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
+
         # If given a file template for new sites
         if type(newSites) is str and os.path.isfile(newSites):
             newSites = siteInventory(Sites=newSites).Sites
@@ -105,15 +106,17 @@ class database:
                 'longitude':values['longitude'],
             }
             self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-            for measurementID in values['Measurements']:
-                self.rawFileSearch(siteID,measurementID)
+            log('Load check')
+            # for measurementID in values['Measurements']:
+            #     self.rawFileSearch(siteID,measurementID)
 
         with open(os.path.join(self.projectPath,'fieldSiteMap.html'),'w+') as out:
             out.write(self.webMap)
 
-    def rawFileSearch(self,siteID,measurementID,kwargs={}):
+    def rawFileSearch(self,siteID=None,measurementID=None,kwargs={}):
         soureFiles_alias = self.Sites[siteID]['Measurements'][measurementID]['sourceFiles']
-        sourceInventory = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'),template={sourceRecord.matchPattern:asdict_repr(sourceRecord(),repr=None)},verbose=self.verbose)
+        sourceInventory = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'),
+        template={sourceRecord.matchPattern:asdict_repr(sourceRecord(),repr=None)},verbose=self.verbose)
         if 'matchPattern' in kwargs and kwargs['matchPattern'] not in sourceInventory:
             sourceInventory[kwargs['matchPattern']] = kwargs
         for result in map(lambda values: sourceRecord(**values),sourceInventory.values()):
@@ -125,20 +128,24 @@ class database:
             sourceInventory.pop(sourceRecord.matchPattern)
 
         self.rawFileImport(siteID,measurementID,sourceInventory)
+        # for val in sourceInventory.values():
+        #     log(val.keys(),kill=True)
         self.save(self.Sites[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
         self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
+        tmp = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
+        for val in tmp.values():
+            log(val.keys())
 
     def rawFileImport(self,siteID,measurementID,sourceInventory):
         Measurement = self.Sites[siteID]['Measurements'][measurementID]
         for matchPattern, sourceFiles in sourceInventory.items():
             if len(sourceFiles)>3 and Measurement['fileType'] == 'TOB3' and self.enableParallel:
-                
                 nproc = min(os.cpu_count()-2,len(sourceFiles))
                 with Pool(processes=nproc) as pool:
                     for result in pool.imap(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType'],parserSettings=sourceFiles['parserSettings']),sourceFiles['fileList'].items()):
                         if not result['DataFrame'].empty:
                             databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'])
-                        sourceInventory[matchPattern][result['filepath']] = result['sourceInfo']
+                        sourceFiles['fileList'][result['filepath']] = result['sourceInfo']
                         self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
                             
             else:
