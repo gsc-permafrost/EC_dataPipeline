@@ -92,10 +92,14 @@ class database:
         self.Sites = self.Sites | newSites
         if len(self.Sites)>1 and '.siteID' in self.Sites:
             self.Sites.pop('.siteID')
+        if 'SCL' in self.Sites:
+            log(self.Sites['SCL']['Measurements']['Flux'])
         self.Sites = siteInventory(Sites=self.Sites)
         self.spatialInventory = self.Sites.spatialInventory
         self.webMap = self.Sites.mapTemplate
         self.Sites = {siteID:self.Sites.Sites[siteID] for siteID in self.Sites.Sites}
+        if 'SCL' in self.Sites:
+            log(self.Sites['SCL']['Measurements']['Flux'])
 
         # save the inventory and make a webmap of sites
         siteDF = pd.DataFrame()
@@ -108,7 +112,7 @@ class database:
             }
             self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
             if self.loadNew:
-                print(self.loadNew)
+                if siteID == 'SCL':sys.exit()
                 for measurementID in values['Measurements']:
                     self.rawFileSearch(siteID,measurementID)
 
