@@ -37,8 +37,7 @@ class sourceRecord:
             self.fileList = fileList            
         if self.rootPath and os.path.isdir(self.rootPath):
             for dir,_,files in os.walk(self.rootPath):
-                self.fileList = self.fileList | {os.path.join(dir,f):{'loaded':False,
-                                                                      }
+                self.fileList = self.fileList | {os.path.join(dir,f):{'loaded':False,'parserSettings':{}}
                             for f in files if
                             fnmatch.fnmatch(os.path.join(dir,f),self.matchPattern) and
                             os.path.join(dir,f) not in self.fileList

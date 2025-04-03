@@ -1,9 +1,9 @@
 
 import os
 import pandas as pd
-import helperFunctions as helper
 from parseFiles import HOBOcsv,TOB3,TOA5
 import importlib
+from parseFiles.helperFunctions.asdict_repr import asdict_repr
 
 importlib.reload(TOB3)
 importlib.reload(HOBOcsv)
@@ -20,7 +20,7 @@ def loadRawFile(source,fileType=None,parserSettings={},verbose=False):
     out = {'filepath':filePath, 'sourceInfo':sourceInfo, 'variableMap':{}, 'DataFrame':pd.DataFrame()}
     if not sourceInfo['loaded'] and fileType in Processor:
         loadedFile = Processor[fileType].read(sourceFile=filePath,verbose=False,**parserSettings)
-        out['sourceInfo']['parserSettings'] = helper.reprToDict(loadedFile)
+        out['sourceInfo']['parserSettings'] = asdict_repr(loadedFile)
         out['sourceInfo']['loaded'] = True
         out['variableMap'] = loadedFile.variableMap
         out['DataFrame'] = loadedFile.DataFrame

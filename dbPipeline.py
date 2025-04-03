@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 
+
 import rawDataFile
 
 from siteInventory import siteInventory
@@ -35,6 +36,7 @@ class database:
     sepChar: str = '/'*2
     verbose: bool = False
     enableParallel: bool = True
+    loadNew: bool = True
     siteIDs: list = field(default_factory=lambda:[])
     Sites: dict = field(default_factory=lambda:{})
     projectInfo: dict = field(default_factory=lambda:yaml.safe_load(Path(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','databaseMetadata.yml')).read_text()))
@@ -64,11 +66,11 @@ class database:
             if not d.startswith('.'):
                 os.makedirs(os.path.join(self.projectPath,d))
         
-    def save(self,dictObj=None,filename=None):
+    def save(self,dictObj=None,filename=None,anchors=False):
         # Saves projectInfo.yml and any other relevant metadata files
         if self.projectPath:
             self.projectInfo['.dateModified'] = now()
-            saveDict(self.projectInfo,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True)
+            saveDict(self.projectInfo,os.path.join(self.projectPath,'projectInfo.yml'),sort_keys=True,anchors=anchors)
             if filename:
                 log(('Saving: ',filename),ln=False,verbose=self.verbose)
                 saveDict(dictObj,filename)
@@ -98,7 +100,6 @@ class database:
         # save the inventory and make a webmap of sites
         siteDF = pd.DataFrame()
         for siteID,values in self.Sites.items():
-            # if siteID != '.siteID':
             self.projectInfo['Sites'][siteID] = {
                 'Name':values['Name'],
                 'description':values['description'],
@@ -106,16 +107,17 @@ class database:
                 'longitude':values['longitude'],
             }
             self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-            log('Load check')
-            # for measurementID in values['Measurements']:
-            #     self.rawFileSearch(siteID,measurementID)
+            if self.loadNew:
+                print(self.loadNew)
+                for measurementID in values['Measurements']:
+                    self.rawFileSearch(siteID,measurementID)
 
         with open(os.path.join(self.projectPath,'fieldSiteMap.html'),'w+') as out:
             out.write(self.webMap)
 
     def rawFileSearch(self,siteID=None,measurementID=None,kwargs={}):
         soureFiles_alias = self.Sites[siteID]['Measurements'][measurementID]['sourceFiles']
-        sourceInventory = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'),
+        sourceInventory = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'),
         template={sourceRecord.matchPattern:asdict_repr(sourceRecord(),repr=None)},verbose=self.verbose)
         if 'matchPattern' in kwargs and kwargs['matchPattern'] not in sourceInventory:
             sourceInventory[kwargs['matchPattern']] = kwargs
@@ -128,13 +130,12 @@ class database:
             sourceInventory.pop(sourceRecord.matchPattern)
 
         self.rawFileImport(siteID,measurementID,sourceInventory)
-        # for val in sourceInventory.values():
-        #     log(val.keys(),kill=True)
         self.save(self.Sites[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-        self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
-        tmp = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
-        for val in tmp.values():
-            log(val.keys())
+        self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'))
+        # tmp = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'))
+        # print(tmp)
+        # for val in tmp.values():
+        #     log(val.keys())
 
     def rawFileImport(self,siteID,measurementID,sourceInventory):
         Measurement = self.Sites[siteID]['Measurements'][measurementID]
@@ -142,20 +143,18 @@ class database:
             if len(sourceFiles)>3 and Measurement['fileType'] == 'TOB3' and self.enableParallel:
                 nproc = min(os.cpu_count()-2,len(sourceFiles))
                 with Pool(processes=nproc) as pool:
-                    for result in pool.imap(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType'],parserSettings=sourceFiles['parserSettings']),sourceFiles['fileList'].items()):
-                        if not result['DataFrame'].empty:
-                            databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'])
-                        sourceFiles['fileList'][result['filepath']] = result['sourceInfo']
-                        self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
-                            
+                    results = pool.map(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType'],parserSettings=sourceFiles['parserSettings']),sourceFiles['fileList'].items())
             else:
-                for result in map(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType'],parserSettings=sourceFiles['parserSettings']),sourceFiles['fileList'].items()):
-                    if not result['DataFrame'].empty:
-                        databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'],verbose=self.verbose)
-                    sourceFiles['fileList'][result['filepath']] = result['sourceInfo']
-                    self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.json'))
-
-
+                results = map(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType'],parserSettings=sourceFiles['parserSettings']),(copy.deepcopy(f) for f in sourceFiles['fileList'].items()))
+            for result in results:
+                if not result['DataFrame'].empty:
+                    databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'])
+                # if len(sourceFiles['fileList'])>1:
+                symLink = [sourceFiles['fileList'][k]['parserSettings'] for k in sourceFiles['fileList'] if sourceFiles['fileList'][k]['parserSettings'] == result['sourceInfo']['parserSettings']]
+                if symLink:
+                    result['sourceInfo']['parserSettings'] = symLink[0]
+                sourceFiles['fileList'][result['filepath']] = result['sourceInfo']
+            self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'),anchors=True)
 
 @dataclass(kw_only=True)
 class databaseFolder:

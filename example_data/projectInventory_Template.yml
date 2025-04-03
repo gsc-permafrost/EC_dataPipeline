@@ -19,6 +19,13 @@ SCL:
       longitude: 'W135 15.1144'
       startDate: 2024-07-20
       stopDate: null
+      sourceFiles:
+        w*ldcard:
+          matchPattern: '*Flux*.dat'
+          rootPath: 'example_data'
+          parserSettings:
+            timezone: UTC
+            calcStats: ['mean']
     Met:
       measurementID: Met
       fileType: TOB3
