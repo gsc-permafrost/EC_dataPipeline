@@ -1,25 +1,25 @@
 
 import os
 import pandas as pd
-from parseFiles import HOBOcsv,TOB3,TOA5
+from parseFiles import parseCSI,parseCSV
 import importlib
 from parseFiles.helperFunctions.asdict_repr import asdict_repr
 
-importlib.reload(TOB3)
-importlib.reload(HOBOcsv)
+importlib.reload(parseCSI)
+importlib.reload(parseCSV)
 
 
 def loadRawFile(source,fileType=None,parserSettings={},verbose=False):
     Processor = {
-        'HOBOcsv':HOBOcsv,
-        'TOB3':TOB3,
-        'TOA5':TOA5,
+        'HOBOcsv':parseCSV.hoboCSV,
+        'TOB3':parseCSI.parseTOB3,
+        'TOA5':parseCSI.parseTOA5,
     }
     filePath,sourceInfo = source[0],source[1]
     ID = os.path.split(filePath)[-1].split('.')[0]
     out = {'filepath':filePath, 'sourceInfo':sourceInfo, 'variableMap':{}, 'DataFrame':pd.DataFrame()}
     if not sourceInfo['loaded'] and fileType in Processor:
-        loadedFile = Processor[fileType].read(sourceFile=filePath,verbose=False,**parserSettings)
+        loadedFile = Processor[fileType](sourceFile=filePath,verbose=False,**parserSettings)
         out['sourceInfo']['parserSettings'] = asdict_repr(loadedFile)
         out['sourceInfo']['loaded'] = True
         out['variableMap'] = loadedFile.variableMap

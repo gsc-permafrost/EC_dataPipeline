@@ -112,7 +112,7 @@ class database:
             }
             self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
             if self.loadNew:
-                if siteID == 'SCL':sys.exit()
+                # if siteID == 'SCL':sys.exit('Chode?')
                 for measurementID in values['Measurements']:
                     self.rawFileSearch(siteID,measurementID)
 
