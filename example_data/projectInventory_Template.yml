@@ -25,7 +25,7 @@ SCL:
           rootPath: 'example_data'
           parserSettings:
             timezone: UTC
-            calcStats: ['mean']
+            summaryStats: ['mean']
     Met:
       measurementID: Met
       fileType: TOB3
