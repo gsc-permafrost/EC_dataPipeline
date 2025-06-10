@@ -11,9 +11,9 @@ importlib.reload(parseCSV)
 
 def loadRawFile(source,fileType=None,parserSettings={},verbose=False):
     Processor = {
-        'HOBOcsv':parseCSV.hoboCSV,
-        'TOB3':parseCSI.parseTOB3,
-        'TOA5':parseCSI.parseTOA5,
+        'HOBOcsv':parseCSV.HOBO,
+        'TOB3':parseCSI.TOB3,
+        'TOA5':parseCSI.TOA5,
     }
     filePath,sourceInfo = source[0],source[1]
     ID = os.path.split(filePath)[-1].split('.')[0]
