@@ -92,14 +92,14 @@ class database:
         self.Sites = self.Sites | newSites
         if len(self.Sites)>1 and '.siteID' in self.Sites:
             self.Sites.pop('.siteID')
-        if 'SCL' in self.Sites:
-            log(self.Sites['SCL']['Measurements']['Flux'])
+        # if 'SCL' in self.Sites:
+        #     log(self.Sites['SCL']['Measurements']['Flux'])
         self.Sites = siteInventory(Sites=self.Sites)
         self.spatialInventory = self.Sites.spatialInventory
         self.webMap = self.Sites.mapTemplate
         self.Sites = {siteID:self.Sites.Sites[siteID] for siteID in self.Sites.Sites}
-        if 'SCL' in self.Sites:
-            log(self.Sites['SCL']['Measurements']['Flux'])
+        # if 'SCL' in self.Sites:
+        #     log(self.Sites['SCL']['Measurements']['Flux'])
 
         # save the inventory and make a webmap of sites
         siteDF = pd.DataFrame()
@@ -136,10 +136,6 @@ class database:
         self.rawFileImport(siteID,measurementID,sourceInventory)
         self.save(self.Sites[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
         self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'))
-        # tmp = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'))
-        # print(tmp)
-        # for val in tmp.values():
-        #     log(val.keys())
 
     def rawFileImport(self,siteID,measurementID,sourceInventory):
         Measurement = self.Sites[siteID]['Measurements'][measurementID]
@@ -153,7 +149,6 @@ class database:
             for result in results:
                 if not result['DataFrame'].empty:
                     databaseFolder(path=os.path.join(self.projectPath,'database',siteID,measurementID),dataIn=result['DataFrame'],variableMap=result['variableMap'])
-                # if len(sourceFiles['fileList'])>1:
                 symLink = [sourceFiles['fileList'][k]['parserSettings'] for k in sourceFiles['fileList'] if sourceFiles['fileList'][k]['parserSettings'] == result['sourceInfo']['parserSettings']]
                 if symLink:
                     result['sourceInfo']['parserSettings'] = symLink[0]
@@ -224,5 +219,5 @@ class databaseFolder:
         for col in self.dataOut.columns:
             if not os.path.isdir(os.path.join(self.path,str(year))): os.makedirs(os.path.join(self.path,str(year)))
             fname = os.path.join(self.path,str(year),col)
-            # log(f'Writing: {fname}',ln=False,verbose=self.verbose)
+            log(f'Writing: {fname}',ln=False,verbose=self.verbose)
             self.dataOut.loc[self.dataOut.index.year==year,col].astype(self.variableMap[col]['dtype']).values.tofile(fname)
