@@ -1,7 +1,7 @@
 import os
 import sys
 import copy
-import fnmatch
+# import fnmatch
 from pathlib import Path
 from dataclasses import dataclass,field
 from functools import partial
@@ -9,7 +9,7 @@ from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
-import geopandas as gpd
+# import geopandas as gpd
 
 
 import rawDataFile
@@ -56,8 +56,7 @@ class database:
             if len(self.siteIDs):
                 self.projectInventory()
             else:
-                self.projectInventory(newSites={'template':{}})
-            
+                self.projectInventory(newSites={'template':{'description':'Chode'}})
     def makeNewProject(self):
         # make a new database
         self.projectInfo['.dateCreated'] = now()

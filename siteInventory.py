@@ -10,6 +10,7 @@ from parseFiles.helperFunctions.log import log
 from pathlib import Path
 import geopandas as gpd
 import pandas as pd
+import numpy as np
 import fnmatch
 import json
 import yaml
@@ -46,13 +47,13 @@ class sourceRecord:
 @dataclass(kw_only=True)
 class measurementRecord:
     # Records pertaining to a measurement set
-    measurementID: str = '.TMP'
-    description: str = 'This is a template for defining measurement-level metadata'
+    measurementID: str = 'chouPi'
+    description: str = None
     fileType: str = None
     sampleFrequency: str = None
     description: str = None
-    latitude: float = None
-    longitude: float = None
+    latitude: float = np.nan
+    longitude: float = np.nan
     startDate: str = None
     stopDate: str = None
     sourceFiles: sourceRecord = field(default_factory=lambda:{k:v for k,v in sourceRecord.__dict__.items() if k[0:2] != '__'})
@@ -77,15 +78,15 @@ class measurementRecord:
 @dataclass(kw_only=True)
 class siteRecord:
     # Records pertaining to a field site, including a record of measurements from the site
-    siteID: str = '.TMP'
+    siteID: str = 'TemplateSite'
     description: str = 'This is a template for defining site-level metadata which can be used as an example'
     Name: str = None
     PI: str = None
     startDate: str = None
     stopDate: str = None
     landCoverType: str = None
-    latitude: float = None
-    longitude: float = None
+    latitude: float = np.nan
+    longitude: float = np.nan
     coordinates: parseCoordinates = field(default_factory=lambda:parseCoordinates(),repr=False)
     geojson: dict = field(default_factory=lambda:{},repr=False)
     geodataframe: gpd.GeoDataFrame = field(default_factory=lambda:gpd.GeoDataFrame(),repr=False)
@@ -95,8 +96,10 @@ class siteRecord:
     def __post_init__(self):
         if self.siteID:
             self.siteID = safeFormat(self.siteID)
+            print(self.latitude and self.longitude)
             if self.latitude and self.longitude:
                 self.coordinates = parseCoordinates(ID=self.siteID,latitude=self.latitude,longitude=self.longitude,attributes={'description':self.description,'pointClass':type(self).__name__})
+                print(self.coordinates)
                 self.latitude,self.longitude=self.coordinates.latitude,self.coordinates.longitude
                 self.geojson = self.coordinates.geojson
                 self.geodataframe = self.coordinates.geodataframe
