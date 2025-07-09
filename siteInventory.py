@@ -10,11 +10,10 @@ from parseFiles.helperFunctions.log import log
 from pathlib import Path
 import geopandas as gpd
 import pandas as pd
-import numpy as np
+import datetime
 import fnmatch
 import json
 import yaml
-import copy
 import os
 import re
 
@@ -47,13 +46,13 @@ class sourceRecord:
 @dataclass(kw_only=True)
 class measurementRecord:
     # Records pertaining to a measurement set
-    measurementID: str = 'chouPi'
-    description: str = None
+    measurementID: str = 'measurementID'
+    description: str = 'This is a template for defining measurement-level metadata which can be used as an example'
     fileType: str = None
     sampleFrequency: str = None
     description: str = None
-    latitude: float = np.nan
-    longitude: float = np.nan
+    latitude: float = None
+    longitude: float = None
     startDate: str = None
     stopDate: str = None
     sourceFiles: sourceRecord = field(default_factory=lambda:{k:v for k,v in sourceRecord.__dict__.items() if k[0:2] != '__'})
@@ -78,15 +77,15 @@ class measurementRecord:
 @dataclass(kw_only=True)
 class siteRecord:
     # Records pertaining to a field site, including a record of measurements from the site
-    siteID: str = 'TemplateSite'
+    siteID: str = 'siteID'
     description: str = 'This is a template for defining site-level metadata which can be used as an example'
     Name: str = None
     PI: str = None
     startDate: str = None
-    stopDate: str = None
+    stopDate: str =  None
     landCoverType: str = None
-    latitude: float = np.nan
-    longitude: float = np.nan
+    latitude: float = None
+    longitude: float = None
     coordinates: parseCoordinates = field(default_factory=lambda:parseCoordinates(),repr=False)
     geojson: dict = field(default_factory=lambda:{},repr=False)
     geodataframe: gpd.GeoDataFrame = field(default_factory=lambda:gpd.GeoDataFrame(),repr=False)
@@ -123,6 +122,7 @@ class siteRecord:
 class siteInventory:
     Sites: dict = None
     verbose: bool = False
+    template: bool = False
     spatialInventory: dict = field(default_factory=lambda:{})
     mapTemplate: str = field(default_factory=lambda:Path(os.path.join(os.path.dirname(os.path.abspath(__file__)),'config_files','MapTemplate.html')).read_text())
 

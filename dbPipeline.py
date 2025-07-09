@@ -25,7 +25,7 @@ import datetime
 import yaml
 
 
-def now(fmt='%Y-%m-%dT%H:%M:%S.%f',prefix='',suffix=''):
+def now(fmt='%Y-%m-%dT%H:%M:%S',prefix='',suffix=''):
     return(f"{prefix}{datetime.datetime.now().strftime(fmt)}{suffix}")
 
 @dataclass(kw_only=True)
@@ -35,6 +35,7 @@ class database:
     fillChar: str = '_'
     sepChar: str = '/'*2
     verbose: bool = False
+    template: bool = True
     enableParallel: bool = True
     loadNew: bool = True
     siteIDs: list = field(default_factory=lambda:[])
@@ -55,8 +56,13 @@ class database:
                 self.siteIDs = [siteID for siteID in self.projectInfo['Sites'] if not siteID.startswith('.')]
             if len(self.siteIDs):
                 self.projectInventory()
+            elif self.template:
+                log('Creating template project inventory',ln=False)
+                self.projectInventory(newSites={'template':{}})
             else:
-                self.projectInventory(newSites={'template':{'description':'Chode'}})
+                if self.verbose:
+                    log('No sites found in project, creating empty project inventory',ln=False)
+                # self.projectInventory(newSites={'template':{'description':'Chode'}})
     def makeNewProject(self):
         # make a new database
         self.projectInfo['.dateCreated'] = now()
@@ -78,7 +84,6 @@ class database:
         # Read existing sites
         for siteID in self.siteIDs:
             self.Sites[siteID] = loadDict(os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
-
         # If given a file template for new sites
         if type(newSites) is str and os.path.isfile(newSites):
             newSites = siteInventory(Sites=newSites).Sites
@@ -194,6 +199,7 @@ class databaseFolder:
     def emptyYear(self,year):
         dataset = pd.DataFrame(index=pd.date_range(str(year),str(year+1),freq=self.POSIX_timestamp['frequency'],inclusive='right'))
         dataset['POSIX_timestamp'] = (dataset.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+        print(dataset['POSIX_timestamp'])
         for col in set(list(self.dataIn.columns)+list(dataset.columns)):
             if col in dataset.columns and col in self.dataIn.columns:
                 dataset[col] = dataset[col].fillna(self.dataIn.loc[self.dataIn.index.year==year,col])

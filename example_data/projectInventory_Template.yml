@@ -18,7 +18,7 @@ SCL:
       latitude: '69 13.5850'
       longitude: 'W135 15.1144'
       startDate: 2024-07-20
-      stopDate: null
+      stopDate: 2024-09-13
       sourceFiles:
         w*ldcard:
           matchPattern: '*Flux*.dat'
