@@ -32,7 +32,7 @@ class sourceRecord:
         if self.rootPath and os.path.isdir(self.rootPath):
             self.rootPath = os.path.abspath(self.rootPath)
 
-    def __find__(self,fileList=None):
+    def __find_files__(self,fileList=None):
         if fileList is not None:
             self.fileList = fileList            
         if self.rootPath and os.path.isdir(self.rootPath):

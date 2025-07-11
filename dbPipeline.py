@@ -57,7 +57,7 @@ class database:
             if len(self.siteIDs):
                 self.projectInventory()
             elif self.template:
-                log('Creating template project inventory',ln=False)
+                log(f'Creating template project inventory, see {self.projectPath}/Sites/siteID',ln=False)
                 self.projectInventory(newSites={'template':{}})
             else:
                 if self.verbose:
@@ -130,13 +130,13 @@ class database:
         if 'matchPattern' in kwargs and kwargs['matchPattern'] not in sourceInventory:
             sourceInventory[kwargs['matchPattern']] = kwargs
         for result in map(lambda values: sourceRecord(**values),sourceInventory.values()):
-            result.__find__()
+            result.__find_files__()
             sourceInventory[result.matchPattern] = asdict_repr(result,repr=None)
             soureFiles_alias[result.matchPattern] = asdict_repr(result)
         if len(soureFiles_alias)>1 and sourceRecord.matchPattern in soureFiles_alias:
             soureFiles_alias.pop(sourceRecord.matchPattern)
+        if len(sourceInventory)>1 and sourceRecord.matchPattern in sourceInventory:
             sourceInventory.pop(sourceRecord.matchPattern)
-
         self.rawFileImport(siteID,measurementID,sourceInventory)
         self.save(self.Sites[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
         self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'))
