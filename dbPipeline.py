@@ -57,12 +57,11 @@ class database:
             if len(self.siteIDs):
                 self.projectInventory()
             elif self.template:
-                log(f'Creating template project inventory, see {self.projectPath}/Sites/siteID',ln=False)
+                log('Creating empty project from template',ln=False)
                 self.projectInventory(newSites={'template':{}})
             else:
                 if self.verbose:
                     log('No sites found in project, creating empty project inventory',ln=False)
-                # self.projectInventory(newSites={'template':{'description':'Chode'}})
     def makeNewProject(self):
         # make a new database
         self.projectInfo['.dateCreated'] = now()
@@ -96,14 +95,10 @@ class database:
         self.Sites = self.Sites | newSites
         if len(self.Sites)>1 and '.siteID' in self.Sites:
             self.Sites.pop('.siteID')
-        # if 'SCL' in self.Sites:
-        #     log(self.Sites['SCL']['Measurements']['Flux'])
         self.Sites = siteInventory(Sites=self.Sites)
         self.spatialInventory = self.Sites.spatialInventory
         self.webMap = self.Sites.mapTemplate
         self.Sites = {siteID:self.Sites.Sites[siteID] for siteID in self.Sites.Sites}
-        # if 'SCL' in self.Sites:
-        #     log(self.Sites['SCL']['Measurements']['Flux'])
 
         # save the inventory and make a webmap of sites
         siteDF = pd.DataFrame()
@@ -116,7 +111,6 @@ class database:
             }
             self.save(values,os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
             if self.loadNew:
-                # if siteID == 'SCL':sys.exit('Chode?')
                 for measurementID in values['Measurements']:
                     self.rawFileSearch(siteID,measurementID)
 
@@ -125,8 +119,11 @@ class database:
 
     def rawFileSearch(self,siteID=None,measurementID=None,kwargs={}):
         soureFiles_alias = self.Sites[siteID]['Measurements'][measurementID]['sourceFiles']
-        sourceInventory = loadDict(os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'),
-        template={sourceRecord.matchPattern:asdict_repr(sourceRecord(),repr=None)},verbose=self.verbose)
+        sourceInventory = loadDict(
+            os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'),
+            template={sourceRecord.matchPattern:asdict_repr(sourceRecord(),repr=None)},
+            verbose=False
+            )
         if 'matchPattern' in kwargs and kwargs['matchPattern'] not in sourceInventory:
             sourceInventory[kwargs['matchPattern']] = kwargs
         for result in map(lambda values: sourceRecord(**values),sourceInventory.values()):
@@ -137,6 +134,9 @@ class database:
             soureFiles_alias.pop(sourceRecord.matchPattern)
         if len(sourceInventory)>1 and sourceRecord.matchPattern in sourceInventory:
             sourceInventory.pop(sourceRecord.matchPattern)
+        addendum = ([k for k in soureFiles_alias.keys() if k not in sourceInventory.keys()])
+        for a in addendum:
+            sourceInventory[a] = copy.deepcopy(soureFiles_alias[a])
         self.rawFileImport(siteID,measurementID,sourceInventory)
         self.save(self.Sites[siteID],os.path.join(self.projectPath,'Sites',siteID,f"{siteID}_metadata.yml"))
         self.save(sourceInventory,os.path.join(self.projectPath,'Sites',siteID,measurementID,'sourceFiles.yml'))
@@ -144,7 +144,10 @@ class database:
     def rawFileImport(self,siteID,measurementID,sourceInventory):
         Measurement = self.Sites[siteID]['Measurements'][measurementID]
         for matchPattern, sourceFiles in sourceInventory.items():
-            if len(sourceFiles)>3 and Measurement['fileType'] == 'TOB3' and self.enableParallel:
+            if 'fileList' not in sourceFiles:
+                log('No sourceFiles to import',ln=False,verbose=self.verbose)
+                pass
+            elif len(sourceFiles['fileList'])>3 and Measurement['fileType'] == 'TOB3' and self.enableParallel:
                 nproc = min(os.cpu_count()-2,len(sourceFiles))
                 with Pool(processes=nproc) as pool:
                     results = pool.map(partial(rawDataFile.loadRawFile,fileType=Measurement['fileType'],parserSettings=sourceFiles['parserSettings']),sourceFiles['fileList'].items())
@@ -199,7 +202,6 @@ class databaseFolder:
     def emptyYear(self,year):
         dataset = pd.DataFrame(index=pd.date_range(str(year),str(year+1),freq=self.POSIX_timestamp['frequency'],inclusive='right'))
         dataset['POSIX_timestamp'] = (dataset.index - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-        print(dataset['POSIX_timestamp'])
         for col in set(list(self.dataIn.columns)+list(dataset.columns)):
             if col in dataset.columns and col in self.dataIn.columns:
                 dataset[col] = dataset[col].fillna(self.dataIn.loc[self.dataIn.index.year==year,col])

@@ -68,9 +68,6 @@ class measurementRecord:
                 self.sourceFiles = {'':self.sourceFiles}
             sobj = map(lambda values :sourceRecord(**values),self.sourceFiles.values())
             self.sourceFiles = {s.matchPattern:asdict_repr(s) for s in sobj}
-            # log('replace repr2dict method')
-            # for key in self.sourceFiles:
-            #     self.sourceFiles[key].pop('fileList')
             if len(self.sourceFiles)>1 and self.__dataclass_fields__['sourceFiles'].default_factory()['matchPattern'] in self.sourceFiles:
                 self.sourceFiles.pop(self.__dataclass_fields__['sourceFiles'].default_factory()['matchPattern'])                
 
@@ -94,8 +91,9 @@ class siteRecord:
     
     def __post_init__(self):
         if self.siteID:
+            if self.Name is None:
+                self.Name = self.siteID
             self.siteID = safeFormat(self.siteID)
-            print(self.latitude and self.longitude)
             if self.latitude and self.longitude:
                 self.coordinates = parseCoordinates(ID=self.siteID,latitude=self.latitude,longitude=self.longitude,attributes={'description':self.description,'pointClass':type(self).__name__})
                 print(self.coordinates)
